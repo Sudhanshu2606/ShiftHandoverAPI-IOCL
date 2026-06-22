@@ -1,0 +1,420 @@
+@{
+    ViewData["Title"] = "Admin Reports - IOCL Panipat Refinery";
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"]</title>
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #fff5eb; }
+        .navbar-iocl { background: linear-gradient(90deg, #ea580c, #dc2626); }
+        .text-iocl-orange { color: #e65100; }
+        .bg-iocl-light { background: #fff5eb; }
+        .report-card { border: none; border-radius: 12px; transition: transform 0.2s ease; }
+        .report-card:hover { transform: translateY(-2px); }
+        .filter-section { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .stats-card { background: white; border-radius: 12px; padding: 16px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .status-badge-submitted { background: #d4edda; color: #155724; }
+        .status-badge-draft { background: #fff3cd; color: #856404; }
+        .btn-iocl-primary { background: linear-gradient(90deg, #ff9800, #e65100); color: white; border: none; border-radius: 50px; padding: 8px 24px; font-weight: 600; }
+        .btn-iocl-primary:hover { opacity: 0.9; color: white; }
+        .report-detail-card { border-left: 4px solid #ff9800; border-radius: 8px; background: white; padding: 16px 20px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+        .task-remarks-bubble { background: #f0f7ff; border-radius: 8px; padding: 4px 10px; font-size: 0.85rem; border-left: 3px solid #4a90d9; margin-top: 4px; color: #333; }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-iocl shadow-sm px-4 py-2">
+        <div class="container-fluid">
+            <div class="d-flex align-items-center gap-3">
+                <img src="/iocl-logo.png" alt="IOCL" style="height:40px;background:white;padding:5px;border-radius:10px;" 
+                     onerror="this.src='https://upload.wikimedia.org/wikipedia/commons/f/f8/Indian_Oil_Logo.svg'" />
+                <div>
+                    <span class="navbar-brand text-white fw-bold">Admin Reports</span>
+                    <small class="text-white-50 d-block">Shift Handover Management System</small>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <button id="back-dashboard-btn" class="btn btn-outline-light btn-sm rounded-pill">
+                    <i class="bi bi-arrow-left me-1"></i>Dashboard
+                </button>
+                <button id="logout-btn" class="btn btn-outline-light btn-sm rounded-pill">
+                    <i class="bi bi-box-arrow-right me-1"></i>Logout
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-4 py-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="fw-bold text-iocl-orange mb-1"><i class="bi bi-file-earmark-bar-graph me-2"></i>Reports Dashboard</h2>
+                <p class="text-muted small">View and analyze all handover reports across refinery units</p>
+            </div>
+            <div class="d-flex gap-2">
+                <button id="export-csv-btn" class="btn btn-success btn-sm rounded-pill">
+                    <i class="bi bi-download me-1"></i>Export CSV
+                </button>
+                <button id="print-report-btn" class="btn btn-secondary btn-sm rounded-pill">
+                    <i class="bi bi-printer me-1"></i>Print
+                </button>
+            </div>
+        </div>
+
+        <div id="reports-content">
+            <div class="text-center py-5">
+                <div class="spinner-border text-warning" role="status"></div>
+                <p class="mt-3 text-muted">Loading reports...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Configuration
+        const API_BASE_URL = '/api';
+
+        function getUser() {
+            const saved = localStorage.getItem('user');
+            return saved ? JSON.parse(saved) : null;
+        }
+
+        function getToken() {
+            return localStorage.getItem('token');
+        }
+
+        function esc(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            return new Date(dateStr).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+
+        function formatTime(dateStr) {
+            if (!dateStr) return '';
+            return new Date(dateStr).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        async function apiRequest(method, path, body) {
+            const token = getToken();
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = 'Bearer ' + token;
+
+            const res = await fetch(API_BASE_URL + path, {
+                method,
+                headers,
+                body: body !== undefined ? JSON.stringify(body) : undefined
+            });
+
+            if (!res.ok) {
+                let message = res.statusText;
+                try {
+                    const errData = await res.json();
+                    message = errData.message || message;
+                } catch (e) {}
+                throw new Error(message);
+            }
+            const text = await res.text();
+            return text ? JSON.parse(text) : null;
+        }
+
+        // Refinery Units
+        const refineryUnits = [
+            { id: 'cdu', name: 'CDU/VDU - Crude Distillation Unit' },
+            { id: 'rfccu', name: 'RFCCU - Resid Fluidised Catalytic Cracking' },
+            { id: 'dcu', name: 'DCU - Delayed Coker Unit' },
+            { id: 'ohcu', name: 'OHCU - Once Through Hydrocracker' },
+            { id: 'hcu', name: 'HCU - Hydrocracker Unit' },
+            { id: 'dhds', name: 'DHDS - Diesel Hydro Desulphurisation' },
+            { id: 'ncu', name: 'NCU - Naphtha Cracker Unit' },
+            { id: 'pp', name: 'PP - Polypropylene Unit' },
+            { id: 'hdpe', name: 'HDPE - High Density Polyethylene' },
+            { id: 'tankfarm', name: 'Tank Farms - OM&S' },
+            { id: 'etp', name: 'ETP - Effluent Treatment Plant' },
+            { id: 'power', name: 'Power Plant - 239 MW' }
+        ];
+
+        function getUnitName(unitId) {
+            const unit = refineryUnits.find(u => u.id === unitId);
+            return unit ? unit.name : unitId || 'N/A';
+        }
+
+        let allReports = [];
+        let filteredReports = [];
+
+        async function loadReports() {
+            try {
+                allReports = await apiRequest('GET', '/Handover/reports') || [];
+                filteredReports = [...allReports];
+                renderReports();
+            } catch (err) {
+                console.error('Error loading reports:', err);
+                document.getElementById('reports-content').innerHTML = `
+                    <div class="alert alert-danger">Failed to load reports: ${esc(err.message)}</div>
+                `;
+            }
+        }
+
+        function renderReports() {
+            const reports = filteredReports;
+            const total = reports.length;
+            const submitted = reports.filter(r => r.status === 'Submitted').length;
+            const draft = reports.filter(r => r.status === 'Draft').length;
+            let totalTasks = 0;
+            reports.forEach(r => { if (r.tasks) totalTasks += r.tasks.length; });
+
+            // Get unique units for filter
+            const units = [...new Set(reports.map(r => r.unit).filter(Boolean))];
+
+            const html = `
+                <!-- Stats -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="stats-card d-flex justify-content-between align-items-center">
+                            <div><h6 class="text-muted mb-1">Total Reports</h6><h3 class="fw-bold text-iocl-orange mb-0">${total}</h3></div>
+                            <div class="bg-iocl-light rounded-circle p-3"><i class="bi bi-files fs-4 text-iocl-orange"></i></div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card d-flex justify-content-between align-items-center">
+                            <div><h6 class="text-muted mb-1">Submitted</h6><h3 class="fw-bold text-success mb-0">${submitted}</h3></div>
+                            <div class="bg-success bg-opacity-10 rounded-circle p-3"><i class="bi bi-check-circle fs-4 text-success"></i></div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card d-flex justify-content-between align-items-center">
+                            <div><h6 class="text-muted mb-1">Draft</h6><h3 class="fw-bold text-warning mb-0">${draft}</h3></div>
+                            <div class="bg-warning bg-opacity-10 rounded-circle p-3"><i class="bi bi-pencil-square fs-4 text-warning"></i></div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card d-flex justify-content-between align-items-center">
+                            <div><h6 class="text-muted mb-1">Total Tasks</h6><h3 class="fw-bold text-primary mb-0">${totalTasks}</h3></div>
+                            <div class="bg-primary bg-opacity-10 rounded-circle p-3"><i class="bi bi-list-check fs-4 text-primary"></i></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="filter-section mb-4">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="fw-semibold small text-muted"><i class="bi bi-calendar-range me-1"></i>Date Range</label>
+                            <div class="d-flex gap-2 align-items-center">
+                                <input type="date" id="report-date-from" class="form-control form-control-sm" style="width:140px;" />
+                                <span class="text-muted">to</span>
+                                <input type="date" id="report-date-to" class="form-control form-control-sm" style="width:140px;" />
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="fw-semibold small text-muted"><i class="bi bi-building me-1"></i>Unit</label>
+                            <select id="report-unit-filter" class="form-select form-select-sm">
+                                <option value="all">All Units</option>
+                                ${units.map(u => `<option value="${esc(u)}">${esc(getUnitName(u))}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="fw-semibold small text-muted"><i class="bi bi-shift me-1"></i>Shift</label>
+                            <select id="report-shift-filter" class="form-select form-select-sm">
+                                <option value="all">All Shifts</option>
+                                <option value="Morning">Morning</option>
+                                <option value="Evening">Evening</option>
+                                <option value="Night">Night</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="fw-semibold small text-muted"><i class="bi bi-search me-1"></i>Search</label>
+                            <input type="text" id="report-search" class="form-control form-control-sm" placeholder="Search by summary, unit..." />
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex gap-2">
+                        <button id="report-apply-filters" class="btn btn-sm btn-iocl-primary">Apply Filters</button>
+                        <button id="report-clear-filters" class="btn btn-sm btn-outline-secondary">Clear</button>
+                    </div>
+                </div>
+
+                <!-- Reports List -->
+                ${reports.length === 0 ? `
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                        <p>No reports found matching the filters.</p>
+                    </div>
+                ` : reports.map(report => {
+                    const tasks = report.tasks || [];
+                    const creatorName = report.creator?.name || 'Unknown';
+                    const statusBadge = report.status === 'Submitted' ? 
+                        '<span class="badge status-badge-submitted">✅ Submitted</span>' : 
+                        '<span class="badge status-badge-draft">📝 Draft</span>';
+                    const shiftBadge = report.shiftName === 'Morning' ? 
+                        '<span class="badge bg-warning text-dark">Morning</span>' :
+                        report.shiftName === 'Evening' ?
+                        '<span class="badge bg-info text-dark">Evening</span>' :
+                        '<span class="badge bg-secondary text-white">Night</span>';
+
+                    return `
+                    <div class="report-detail-card">
+                        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                                    <span class="fw-bold text-iocl-orange">#${report.id}</span>
+                                    ${statusBadge} ${shiftBadge}
+                                    <span class="badge bg-light text-dark">${esc(getUnitName(report.unit))}</span>
+                                </div>
+                                <div class="mb-2">
+                                    <p class="mb-1">${esc(report.summary || 'No summary')}</p>
+                                    <div class="d-flex flex-wrap gap-3 small text-muted">
+                                        <span><i class="bi bi-calendar3 me-1"></i>${formatDate(report.date)} at ${formatTime(report.date)}</span>
+                                        <span><i class="bi bi-person me-1"></i>Created by: ${esc(creatorName)}</span>
+                                        <span><i class="bi bi-list-check me-1"></i>${tasks.length} tasks</span>
+                                    </div>
+                                </div>
+                                ${tasks.length > 0 ? `
+                                    <div class="mt-2">
+                                        <strong class="small text-muted">Tasks:</strong>
+                                        <div class="d-flex flex-wrap gap-2 mt-1">
+                                            ${tasks.slice(0, 3).map(task => `
+                                                <span class="badge bg-light text-dark border">
+                                                    ${esc(task.title)}
+                                                    ${task.priority ? `<span class="badge ${task.priority === 'High' ? 'bg-danger' : task.priority === 'Medium' ? 'bg-warning' : 'bg-success'} text-white">${esc(task.priority)}</span>` : ''}
+                                                    ${task.status ? `<span class="badge ${task.status === 'Completed' ? 'bg-success' : task.status === 'InProgress' ? 'bg-primary' : 'bg-secondary'} text-white">${esc(task.status)}</span>` : ''}
+                                                    ${task.remarks ? `<i class="bi bi-chat-dots" title="${esc(task.remarks)}"></i>` : ''}
+                                                </span>
+                                            `).join('')}
+                                            ${tasks.length > 3 ? `<span class="badge bg-light text-dark">+${tasks.length - 3} more</span>` : ''}
+                                        </div>
+                                    </div>
+                                ` : ''}
+                            </div>
+                            <div class="d-flex gap-2 flex-shrink-0">
+                                <button class="btn btn-sm btn-outline-info rounded-pill view-report-btn" data-id="${report.id}">
+                                    <i class="bi bi-eye"></i> View
+                                </button>
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('')}
+            `;
+
+            document.getElementById('reports-content').innerHTML = html;
+
+            // Event bindings
+            document.querySelectorAll('.view-report-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    window.location.href = `#/handover/${this.dataset.id}`;
+                });
+            });
+
+            document.getElementById('report-apply-filters').addEventListener('click', applyFilters);
+            document.getElementById('report-clear-filters').addEventListener('click', () => {
+                document.getElementById('report-date-from').value = '';
+                document.getElementById('report-date-to').value = '';
+                document.getElementById('report-unit-filter').value = 'all';
+                document.getElementById('report-shift-filter').value = 'all';
+                document.getElementById('report-search').value = '';
+                applyFilters();
+            });
+
+            document.getElementById('report-search').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') applyFilters();
+            });
+
+            // Export CSV
+            document.getElementById('export-csv-btn').addEventListener('click', () => {
+                const reports = filteredReports;
+                if (reports.length === 0) { alert('No reports to export.'); return; }
+                let csv = 'ID,Date,Shift,Unit,Summary,Status,Creator,Tasks\n';
+                reports.forEach(r => {
+                    csv += [
+                        r.id,
+                        new Date(r.date).toLocaleDateString('en-IN'),
+                        r.shiftName || '',
+                        getUnitName(r.unit),
+                        (r.summary || '').replace(/,/g, ';'),
+                        r.status || '',
+                        r.creator?.name || '',
+                        (r.tasks?.length || 0)
+                    ].join(',') + '\n';
+                });
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `shift_reports_${new Date().toISOString().split('T')[0]}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+
+            document.getElementById('print-report-btn').addEventListener('click', () => window.print());
+        }
+
+        function applyFilters() {
+            const from = document.getElementById('report-date-from').value;
+            const to = document.getElementById('report-date-to').value;
+            const unit = document.getElementById('report-unit-filter').value;
+            const shift = document.getElementById('report-shift-filter').value;
+            const search = document.getElementById('report-search').value.toLowerCase();
+
+            filteredReports = allReports.filter(report => {
+                if (from) {
+                    const reportDate = new Date(report.date);
+                    const fromDate = new Date(from);
+                    if (reportDate < fromDate) return false;
+                }
+                if (to) {
+                    const reportDate = new Date(report.date);
+                    const toDate = new Date(to);
+                    toDate.setHours(23, 59, 59);
+                    if (reportDate > toDate) return false;
+                }
+                if (unit !== 'all' && report.unit !== unit) return false;
+                if (shift !== 'all' && report.shiftName !== shift) return false;
+                if (search) {
+                    const summary = (report.summary || '').toLowerCase();
+                    const unitName = getUnitName(report.unit).toLowerCase();
+                    const creator = (report.creator?.name || '').toLowerCase();
+                    if (!summary.includes(search) && !unitName.includes(search) && !creator.includes(search)) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+
+            renderReports();
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            const user = getUser();
+            if (!user || user.role !== 'Admin') {
+                document.getElementById('reports-content').innerHTML = `
+                    <div class="alert alert-danger">Access denied. Only Admin users can view this page.</div>
+                `;
+                return;
+            }
+
+            loadReports();
+
+            document.getElementById('back-dashboard-btn').addEventListener('click', function() {
+                window.location.href = '#/dashboard';
+            });
+
+            document.getElementById('logout-btn').addEventListener('click', function() {
+                localStorage.clear();
+                window.location.href = '/';
+            });
+        });
+    </script>
+</body>
+</html>

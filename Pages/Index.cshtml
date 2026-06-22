@@ -1,0 +1,1979 @@
+@page
+@{
+    Layout = null;
+    ViewData["Title"] = "IOCL Panipat Refinery - Shift Handover Management System";
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="description" content="IOCL Panipat Refinery - Shift Handover Management System" />
+    <title>IOCL Panipat Refinery - Shift Handover Management System</title>
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+    <style>
+        body {
+            font-family: "Inter", sans-serif;
+        }
+        .text-white-75 {
+            color: rgba(255, 255, 255, 0.85);
+        }
+        .clickable {
+            cursor: pointer;
+        }
+        .app-bg {
+            background: #fff5eb;
+            min-height: 100vh;
+        }
+        .task-remarks-bubble {
+            background: #f0f7ff;
+            border-radius: 8px;
+            padding: 4px 10px;
+            font-size: 0.85rem;
+            border-left: 3px solid #4a90d9;
+            margin-top: 4px;
+            color: #333;
+        }
+        .status-badge-submitted {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-badge-draft {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .btn-iocl-primary {
+            background: linear-gradient(90deg, #ff9800, #e65100);
+            color: white;
+            border: none;
+        }
+        .btn-iocl-primary:hover {
+            opacity: 0.9;
+            color: white;
+        }
+        .report-card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1) !important;
+            transition: all 0.2s ease;
+        }
+        .navbar-iocl {
+            background: linear-gradient(90deg, #ea580c, #dc2626);
+        }
+        .text-iocl-orange {
+            color: #e65100;
+        }
+        .bg-iocl-light {
+            background: #fff5eb;
+        }
+        .filter-section {
+            background: white;
+            border-radius: 12px;
+            padding: 16px 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .stats-card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .report-detail-card {
+            border-left: 4px solid #ff9800;
+            border-radius: 8px;
+            background: white;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="min-vh-100 d-flex align-items-center justify-content-center" style="background:#fff5eb;">
+            <div class="text-center">
+                <div class="spinner-border text-warning" role="status"></div>
+                <p class="mt-3 text-muted">Loading Shift Handover System...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ============================================================
+           CONFIGURATION
+           ============================================================ */
+        const API_BASE_URL = "/api";
+
+        /* ============================================================
+           AUTH HELPERS
+           ============================================================ */
+        const Auth = {
+            getUser() {
+                const saved = localStorage.getItem("user");
+                return saved ? JSON.parse(saved) : null;
+            },
+            getToken() {
+                return localStorage.getItem("token");
+            },
+            login(userData, token) {
+                localStorage.setItem("token", token);
+                localStorage.setItem("user", JSON.stringify(userData));
+            },
+            logout() {
+                localStorage.clear();
+            },
+        };
+
+        /* ============================================================
+           API LAYER
+           ============================================================ */
+        async function apiRequest(method, path, body) {
+            const token = localStorage.getItem("token");
+            const headers = { "Content-Type": "application/json" };
+            if (token) headers["Authorization"] = "Bearer " + token;
+
+            const res = await fetch(API_BASE_URL + path, {
+                method,
+                headers,
+                body: body !== undefined ? JSON.stringify(body) : undefined,
+            });
+
+            if (!res.ok) {
+                let message = res.statusText;
+                try {
+                    const errData = await res.json();
+                    message = errData.message || message;
+                } catch (e) {}
+                const err = new Error(message);
+                err.response = { data: { message } };
+                throw err;
+            }
+
+            const text = await res.text();
+            return text ? JSON.parse(text) : null;
+        }
+
+        const API = {
+            login: (data) => apiRequest("POST", "/Auth/login", data),
+            register: (data) => apiRequest("POST", "/Auth/register", data),
+            getUsers: () => apiRequest("GET", "/User"),
+            getUsersByShift: (shift) => apiRequest("GET", `/User/shift/${shift}`),
+            getUsersByRole: (role) => apiRequest("GET", `/User/role/${role}`),
+            getHandovers: () => apiRequest("GET", "/Handover"),
+            getHandover: (id) => apiRequest("GET", `/Handover/${id}`),
+            createHandover: (data) => apiRequest("POST", "/Handover", data),
+            updateHandover: (id, data) => apiRequest("PUT", `/Handover/${id}`, data),
+            deleteHandover: (id) => apiRequest("DELETE", `/Handover/${id}`),
+            getTasksByHandover: (handoverId) => apiRequest("GET", `/Task/handover/${handoverId}`),
+            getAllTasks: () => apiRequest("GET", "/Task/all"),
+            getMyTasks: () => apiRequest("GET", "/Task/my-tasks"),
+            getTasksAssignedToMe: () => apiRequest("GET", "/Task/assigned-to-me"),
+            getTasksByShift: (shift) => apiRequest("GET", `/Task/shift/${shift}`),
+            getTasksCreatedByMe: (userId) => apiRequest("GET", `/Task/created-by/${userId}`),
+            createTask: (data) => apiRequest("POST", "/Task", data),
+            updateTask: (id, data) => apiRequest("PUT", `/Task/${id}`, data),
+            updateTaskStatus: (id, data) => apiRequest("PUT", `/Task/${id}/status`, data),
+            reassignTask: (id, newAssignedTo) => apiRequest("PUT", `/Task/${id}/reassign`, newAssignedTo),
+            deleteTask: (id) => apiRequest("DELETE", `/Task/${id}`),
+            getIssuesByHandover: (handoverId) => apiRequest("GET", `/Issue/handover/${handoverId}`),
+            createIssue: (data) => apiRequest("POST", "/Issue", data),
+            updateIssue: (id, data) => apiRequest("PUT", `/Issue/${id}`, data),
+            deleteIssue: (id) => apiRequest("DELETE", `/Issue/${id}`),
+            // Admin Reports
+            getReports: () => apiRequest("GET", "/Handover/reports"),
+            getReportsByDate: (date) => apiRequest("GET", `/Handover/reports/date/${date}`),
+            getReportsByDateRange: (from, to) => apiRequest("GET", `/Handover/reports/range?from=${from}&to=${to}`),
+        };
+
+        /* ============================================================
+           CONSTANTS
+           ============================================================ */
+        const refineryUnits = [
+            { id: "cdu", name: "CDU/VDU - Crude Distillation Unit", group: "Primary Processing", capacity: "7.5 MMTPA" },
+            { id: "rfccu", name: "RFCCU - Resid Fluidised Catalytic Cracking", group: "Secondary Processing", capacity: "0.85 MMTPA" },
+            { id: "dcu", name: "DCU - Delayed Coker Unit", group: "Secondary Processing", capacity: "3.0 MMTPA" },
+            { id: "ohcu", name: "OHCU - Once Through Hydrocracker", group: "Secondary Processing", capacity: "1.9 MMTPA" },
+            { id: "hcu", name: "HCU - Hydrocracker Unit", group: "Secondary Processing", capacity: "1.8 MMTPA" },
+            { id: "dhds", name: "DHDS - Diesel Hydro Desulphurisation", group: "Secondary Processing", capacity: "0.77 MMTPA" },
+            { id: "ncu", name: "NCU - Naphtha Cracker Unit", group: "Petrochemical", capacity: "800k TPA" },
+            { id: "pp", name: "PP - Polypropylene Unit", group: "Petrochemical", capacity: "600k TPA" },
+            { id: "hdpe", name: "HDPE - High Density Polyethylene", group: "Petrochemical", capacity: "300k TPA" },
+            { id: "tankfarm", name: "Tank Farms - OM&S", group: "Offsites", capacity: "Large" },
+            { id: "etp", name: "ETP - Effluent Treatment Plant", group: "Environment", capacity: "Multiple" },
+            { id: "power", name: "Power Plant - 239 MW", group: "Utilities", capacity: "239 MW" },
+        ];
+        const unitGroups = ["All", "Primary Processing", "Secondary Processing", "Petrochemical", "Offsites", "Environment", "Utilities"];
+
+        /* ============================================================
+           UTILITY FUNCTIONS
+           ============================================================ */
+        function esc(str) {
+            if (str === null || str === undefined) return "";
+            return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+
+        function priorityColor(p) {
+            if (p === "High") return "bg-danger text-white";
+            if (p === "Medium") return "bg-warning text-dark";
+            return "bg-success text-white";
+        }
+
+        function statusColor(s) {
+            if (s === "Completed") return "bg-success text-white";
+            if (s === "InProgress") return "bg-primary text-white";
+            return "bg-secondary text-white";
+        }
+
+        function spinner(extraClass) {
+            return `<div class="min-vh-100 d-flex align-items-center justify-content-center ${extraClass || ""}" style="background:#fff5eb">
+                <div class="spinner-border text-warning" role="status"></div>
+            </div>`;
+        }
+
+        function navigateTo(hash) {
+            window.location.hash = hash;
+        }
+
+        function goLogout() {
+            Auth.logout();
+            navigateTo("#/");
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+
+        function formatTime(dateStr) {
+            if (!dateStr) return '';
+            const d = new Date(dateStr);
+            return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function getUnitName(unitId) {
+            const unit = refineryUnits.find(u => u.id === unitId);
+            return unit ? unit.name : unitId || 'N/A';
+        }
+
+        const root = document.getElementById("app");
+
+        /* ============================================================
+           ROUTER
+           ============================================================ */
+        function parseHash() {
+            const hash = window.location.hash || "#/";
+            const path = hash.replace(/^#/, "") || "/";
+            const parts = path.split("/").filter(Boolean);
+            return parts;
+        }
+
+        async function router() {
+            const user = Auth.getUser();
+            const parts = parseHash();
+
+            const isProtected = parts.length > 0 && parts[0] !== '';
+            if (isProtected && !user) {
+                navigateTo("#/");
+                return;
+            }
+
+            if (parts.length === 0 || parts[0] === '') {
+                renderLogin();
+            } else if (parts[0] === "dashboard") {
+                renderDashboard(user);
+            } else if (parts[0] === "handover" && parts[1] === "edit" && parts[2]) {
+                if (!(user.role === "Admin" || user.role === "Supervisor")) {
+                    navigateTo("#/dashboard");
+                    return;
+                }
+                renderEditHandover(user, parts[2]);
+            } else if (parts[0] === "handover" && parts[1]) {
+                renderHandoverDetails(user, parts[1]);
+            } else if (parts[0] === "add-employee") {
+                if (user.role !== "Admin") {
+                    navigateTo("#/dashboard");
+                    return;
+                }
+                renderAddEmployee(user);
+            } else if (parts[0] === "my-tasks") {
+                renderMyTasks(user);
+            } else if (parts[0] === "reports") {
+                if (user.role !== "Admin") {
+                    navigateTo("#/dashboard");
+                    return;
+                }
+                renderReports(user);
+            } else {
+                renderLogin();
+            }
+        }
+
+        window.addEventListener("hashchange", router);
+        window.addEventListener("DOMContentLoaded", router);
+
+        /* ============================================================
+           PAGE: LOGIN
+           ============================================================ */
+        function renderLogin() {
+            root.innerHTML = `
+            <div class="min-vh-100 d-flex align-items-center justify-content-center p-3" style="background: linear-gradient(135deg, #fff5eb 0%, #ffe0b2 100%);">
+                <div class="container">
+                    <div class="row justify-content-center">
+                        <div class="col-md-5 col-lg-4">
+                            <div class="card shadow-lg border-0 rounded-4 overflow-hidden" style="background:white;">
+                                <div class="d-flex flex-column align-items-center justify-content-center pt-4 pb-1">
+                                    <img id="login-logo" src="iocl-logo.png" alt="Indian Oil Corporation Limited" class="img-fluid" style="height:70px;width:auto;object-fit:contain;" />
+                                    <h2 class="fw-bold mt-2 mb-0" style="color:#e65100;">Shift Handover</h2>
+                                    <p class="text-muted small mb-1">Management System</p>
+                                    <div class="d-flex justify-content-center gap-2 mb-1">
+                                        <div style="width:35px;height:2px;background:#ff9800;border-radius:2px;"></div>
+                                        <div style="width:35px;height:2px;background:#e65100;border-radius:2px;"></div>
+                                        <div style="width:35px;height:2px;background:#ff9800;border-radius:2px;"></div>
+                                    </div>
+                                    <p class="small text-muted">IOCL Panipat Refinery</p>
+                                </div>
+                                <div class="card-body p-4 pt-0">
+                                    <div id="login-error"></div>
+                                    <form id="login-form">
+                                        <div class="mb-3">
+                                            <label class="form-label fw-semibold small" style="color:#e65100;">Email Address</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text bg-white border-end-0" style="border-color:#ffe0b2;">
+                                                    <i class="bi bi-envelope" style="color:#ff9800;"></i>
+                                                </span>
+                                                <input type="email" id="login-email" class="form-control border-start-0 ps-0" style="border-color:#ffe0b2;" placeholder="Enter your email" required />
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label fw-semibold small" style="color:#e65100;">Password</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text bg-white border-end-0" style="border-color:#ffe0b2;">
+                                                    <i class="bi bi-lock" style="color:#ff9800;"></i>
+                                                </span>
+                                                <input type="password" id="login-password" class="form-control border-start-0 ps-0" style="border-color:#ffe0b2;" placeholder="Enter your password" required />
+                                            </div>
+                                        </div>
+                                        <button type="submit" id="login-submit-btn" class="btn w-100 py-2 fw-bold text-white border-0 mb-2" style="background: linear-gradient(90deg, #ff9800, #e65100); border-radius:10px;">
+                                            <i class="bi bi-box-arrow-in-right me-2"></i>Login
+                                        </button>
+                                    </form>
+                                    <div class="d-flex align-items-center justify-content-center gap-2 my-2">
+                                        <div style="flex:1;height:1px;background:#ffe0b2;"></div>
+                                        <i class="bi bi-shield-check" style="color:#ff9800;font-size:14px;"></i>
+                                        <div style="flex:1;height:1px;background:#ffe0b2;"></div>
+                                    </div>
+                                    <div class="text-center">
+                                        <p class="small text-muted mb-0">Authorized Personnel Only</p>
+                                    </div>
+                                </div>
+                                <div class="text-center pb-3">
+                                    <small class="text-muted" style="font-size:11px;">© 2024 Indian Oil Corporation Limited</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+
+            document.getElementById("login-logo").addEventListener("error", function() {
+                this.onerror = null;
+                this.src = "https://upload.wikimedia.org/wikipedia/commons/f/f8/Indian_Oil_Logo.svg";
+            });
+
+            document.getElementById("login-form").addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const email = document.getElementById("login-email").value;
+                const password = document.getElementById("login-password").value;
+                const errorBox = document.getElementById("login-error");
+                const submitBtn = document.getElementById("login-submit-btn");
+                errorBox.innerHTML = "";
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Logging in...`;
+
+                try {
+                    const res = await API.login({ email, password });
+                    Auth.login({
+                        id: res.id,
+                        name: res.name,
+                        role: res.role,
+                        department: res.department,
+                        shiftAssigned: res.shiftAssigned,
+                    }, res.token);
+                    navigateTo("#/dashboard");
+                } catch (err) {
+                    errorBox.innerHTML = `<div class="alert alert-danger py-2 text-center small mb-3" role="alert" style="background:#ffebee;border-color:#ffcdd2;color:#c62828;">
+                        <i class="bi bi-exclamation-triangle me-2"></i>Invalid email or password!
+                    </div>`;
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = `<i class="bi bi-box-arrow-in-right me-2"></i>Login`;
+                }
+            });
+        }
+
+        /* ============================================================
+           PAGE: DASHBOARD
+           ============================================================ */
+        let dashboardState = {
+            handovers: [],
+            searchTerm: "",
+            selectedUnit: "all",
+            selectedGroup: "All",
+        };
+
+        async function renderDashboard(user) {
+            root.innerHTML = spinner();
+            let handovers = [];
+            try {
+                handovers = (await API.getHandovers()) || [];
+            } catch (err) {
+                console.error("Error:", err);
+                handovers = [];
+            }
+            dashboardState.handovers = handovers;
+            dashboardState.searchTerm = "";
+            dashboardState.selectedUnit = "all";
+            dashboardState.selectedGroup = "All";
+            drawDashboard(user);
+        }
+
+        function getFilteredHandovers(user) {
+            let filtered = dashboardState.handovers;
+            if (user?.role === "Supervisor") {
+                filtered = filtered.filter(
+                    (h) => h.shiftName === user?.shiftAssigned || h.createdBy === user?.id
+                );
+            }
+            if (dashboardState.selectedGroup !== "All") {
+                const groupUnitIds = refineryUnits
+                    .filter((u) => u.group === dashboardState.selectedGroup)
+                    .map((u) => u.id);
+                filtered = filtered.filter((h) => groupUnitIds.includes(h.unit));
+            }
+            if (dashboardState.selectedUnit !== "all") {
+                filtered = filtered.filter(
+                    (h) => h.unit === dashboardState.selectedUnit
+                );
+            }
+            const term = dashboardState.searchTerm.toLowerCase();
+            filtered = filtered.filter((h) => {
+                return (
+                    (h.summary || "").toLowerCase().includes(term) ||
+                    (h.shiftName || "").toLowerCase().includes(term) ||
+                    (h.unitName || "").toLowerCase().includes(term)
+                );
+            });
+            return filtered;
+        }
+
+        function drawDashboard(user) {
+            const handovers = dashboardState.handovers;
+            const visibleHandovers = getFilteredHandovers(user);
+            const draftCount = visibleHandovers.filter(
+                (h) => h.status === "Draft"
+            ).length;
+            const submittedCount = visibleHandovers.filter(
+                (h) => h.status === "Submitted"
+            ).length;
+
+            const unitCount = {};
+            handovers.forEach((h) => {
+                if (h.unit) unitCount[h.unit] = (unitCount[h.unit] || 0) + 1;
+            });
+
+            const groupCount = {};
+            handovers.forEach((h) => {
+                const unit = refineryUnits.find((u) => u.id === h.unit);
+                if (unit && unit.group)
+                    groupCount[unit.group] = (groupCount[unit.group] || 0) + 1;
+            });
+
+            const hour = new Date().getHours();
+            const greeting = hour < 12 ? "Morning" : hour < 18 ? "Afternoon" : "Evening";
+
+            const unitFilterHtml = user?.role === "Admin" ? `
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body">
+                    <h6 class="fw-bold mb-3" style="color:#e65100;">Filter by Refinery Unit</h6>
+                    <div class="d-flex flex-wrap gap-2 mb-3 pb-2 border-bottom" id="group-filter-row">
+                        ${unitGroups.map((group) => {
+                            const active = dashboardState.selectedGroup === group;
+                            let badge = "";
+                            if (group !== "All" && groupCount[group] > 0)
+                                badge = `<span class="badge bg-secondary ms-1">${groupCount[group]}</span>`;
+                            if (group === "All" && handovers.length > 0)
+                                badge = `<span class="badge bg-secondary ms-1">${handovers.length}</span>`;
+                            return `<button data-group="${esc(group)}" class="btn btn-sm rounded-pill group-filter-btn ${active ? "btn-warning" : "btn-outline-secondary"}">${esc(group)}${badge}</button>`;
+                        }).join("")}
+                    </div>
+                    <div class="d-flex flex-wrap gap-2" id="unit-filter-row">
+                        ${refineryUnits.filter(u => dashboardState.selectedGroup === "All" || u.group === dashboardState.selectedGroup)
+                            .map((unit) => {
+                                const active = dashboardState.selectedUnit === unit.id;
+                                const badge = unitCount[unit.id] > 0 ? `<span class="badge bg-secondary ms-1">${unitCount[unit.id]}</span>` : "";
+                                return `<button data-unit="${esc(unit.id)}" class="btn btn-sm rounded-pill unit-filter-btn ${active ? "btn-warning" : "btn-outline-secondary"}">${esc(unit.name)}${badge}</button>`;
+                            }).join("")}
+                    </div>
+                </div>
+            </div>` : "";
+
+            const rowsHtml = visibleHandovers.length === 0 ?
+                `<tr><td colspan="8" class="text-center py-5 text-muted"><i class="bi bi-inbox fs-1 d-block mb-2"></i>No handover reports found.</td></tr>` :
+                visibleHandovers.map((handover) => {
+                    const date = new Date(handover.date);
+                    const shiftBadge = handover.shiftName === "Morning" ? "bg-warning" :
+                        handover.shiftName === "Evening" ? "bg-info" : "bg-secondary";
+                    const canEditDelete = user?.role === "Admin" ||
+                        (user?.role === "Supervisor" && handover.createdBy === user?.id);
+                    return `<tr>
+                        <td class="px-4 py-3">${date.toLocaleDateString()}<br><small class="text-muted">${date.toLocaleTimeString()}</small></td>
+                        <td class="px-4 py-3"><span class="badge ${shiftBadge} rounded-pill">${esc(handover.shiftName)}</span></td>
+                        <td class="px-4 py-3"><span class="badge bg-light text-dark rounded-pill">${esc(handover.unitName || handover.unit || "-")}</span></td>
+                        <td class="px-4 py-3">${esc((handover.summary || "").substring(0, 60))}...</td>
+                        <td class="px-4 py-3">${(handover.tasks && handover.tasks.length) || 0}</td>
+                        <td class="px-4 py-3">${(handover.issues && handover.issues.length) || 0}</td>
+                        <td class="px-4 py-3"><span class="badge ${handover.status === "Submitted" ? "bg-success" : "bg-warning"} rounded-pill">${esc(handover.status)}</span></td>
+                        <td class="px-4 py-3">
+                            <div class="btn-group btn-group-sm">
+                                <button data-action="view" data-id="${handover.id}" class="btn btn-outline-info btn-sm rounded-pill me-1" title="View"><i class="bi bi-eye"></i></button>
+                                ${canEditDelete ? `
+                                <button data-action="edit" data-id="${handover.id}" class="btn btn-outline-warning btn-sm rounded-pill me-1" title="Edit"><i class="bi bi-pencil"></i></button>
+                                <button data-action="delete" data-id="${handover.id}" class="btn btn-outline-danger btn-sm rounded-pill" title="Delete"><i class="bi bi-trash"></i></button>` : ""}
+                            </div>
+                        </td>
+                    </tr>`;
+                }).join("");
+
+            root.innerHTML = `
+            <div style="background:#fff5eb;min-height:100vh;">
+                <div class="text-white px-4 py-3 shadow-sm d-flex justify-content-between align-items-center" style="background: linear-gradient(90deg, #ea580c, #dc2626);">
+                    <div class="d-flex align-items-center gap-2">
+                        <img src="iocl-logo.png" alt="IOCL" style="height:40px;background:white;padding:5px;border-radius:10px;" />
+                        <div>
+                            <span class="fw-bold">Indian Oil Panipat Refinery</span>
+                            <small class="d-block text-white-50">Shift Handover Management System</small>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="text-end">
+                            <div class="fw-semibold small">${esc(user?.name)}</div>
+                            <small class="text-white-50">${esc(user?.role)} | ${esc(user?.shiftAssigned || "General")}</small>
+                        </div>
+                        ${user?.role === "Admin" ? `<button id="reports-nav-btn" class="btn btn-outline-light btn-sm rounded-pill"><i class="bi bi-file-earmark-bar-graph me-1"></i>Reports</button>` : ""}
+                        <button id="logout-btn" class="btn btn-outline-light btn-sm rounded-pill">Logout</button>
+                    </div>
+                </div>
+
+                <div class="container-fluid p-4">
+                    <div class="card border-0 shadow-sm mb-4" style="background: linear-gradient(135deg, #ff9800, #e65100);">
+                        <div class="card-body text-white p-4">
+                            <div class="row align-items-center">
+                                <div class="col">
+                                    <h2 class="fw-bold mb-2">Good ${greeting}, ${esc(user?.name)}!</h2>
+                                    <p class="mb-0 text-white-75">${user?.role === "Admin" ? "You have full access to all refinery units and reports." : "You are managing shift handovers."}</p>
+                                </div>
+                                <div class="col-auto">
+                                    <div class="text-center bg-white bg-opacity-25 rounded-3 p-3">
+                                        <div class="h2 fw-bold mb-0">${visibleHandovers.length}</div>
+                                        <small>My Reports</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-4">
+                            <div class="card border-0 shadow-sm h-100"><div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div><h6 class="text-muted mb-1">Total Handovers</h6><h2 class="fw-bold mb-0" style="color:#e65100;">${visibleHandovers.length}</h2></div>
+                                    <div class="rounded-3 p-3" style="background:#fff3e0;"><i class="bi bi-files fs-1" style="color:#ff9800;"></i></div>
+                                </div>
+                            </div></div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card border-0 shadow-sm h-100"><div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div><h6 class="text-muted mb-1">Draft Reports</h6><h2 class="fw-bold mb-0 text-warning">${draftCount}</h2></div>
+                                    <div class="rounded-3 p-3" style="background:#fff3e0;"><i class="bi bi-file-earmark-text fs-1 text-warning"></i></div>
+                                </div>
+                            </div></div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card border-0 shadow-sm h-100"><div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div><h6 class="text-muted mb-1">Submitted Reports</h6><h2 class="fw-bold mb-0 text-success">${submittedCount}</h2></div>
+                                    <div class="rounded-3 p-3" style="background:#fff3e0;"><i class="bi bi-check2-circle fs-1 text-success"></i></div>
+                                </div>
+                            </div></div>
+                        </div>
+                    </div>
+
+                    ${unitFilterHtml}
+
+                    <div class="d-flex flex-wrap gap-3 mb-4">
+                        ${user?.role === "Admin" || user?.role === "Supervisor" ? `
+                        <button id="create-handover-btn" class="btn px-4 py-2 shadow-sm rounded-pill text-white" style="background: linear-gradient(90deg, #ff9800, #e65100); border:none;">
+                            <i class="bi bi-plus-circle me-2"></i>Create New Handover Report
+                        </button>` : ""}
+                        <button id="my-tasks-btn" class="btn btn-primary px-4 py-2 shadow-sm rounded-pill"><i class="bi bi-list-check me-2"></i>My Tasks</button>
+                        ${user?.role === "Admin" ? `
+                        <button id="add-employee-btn" class="btn btn-success px-4 py-2 shadow-sm rounded-pill"><i class="bi bi-person-plus me-2"></i>Add Employee</button>
+                        <button id="reports-btn" class="btn btn-info px-4 py-2 shadow-sm rounded-pill text-white"><i class="bi bi-file-earmark-bar-graph me-2"></i>View Reports</button>` : ""}
+                    </div>
+
+                    <div class="mb-4">
+                        <div class="position-relative" style="max-width:350px;">
+                            <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
+                            <input type="text" id="search-input" class="form-control ps-5 py-2 rounded-pill" placeholder="Search handovers by unit, shift, or summary..." value="${esc(dashboardState.searchTerm)}" />
+                        </div>
+                    </div>
+
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead style="background:#fff3e0;">
+                                        <tr>
+                                            <th class="px-4 py-3">Date</th><th class="px-4 py-3">Shift</th><th class="px-4 py-3">Unit</th>
+                                            <th class="px-4 py-3">Summary</th><th class="px-4 py-3">Tasks</th><th class="px-4 py-3">Issues</th>
+                                            <th class="px-4 py-3">Status</th><th class="px-4 py-3">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${rowsHtml}</tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <footer class="mt-5 pt-3 border-top text-center" style="border-color:#ffe0b2;">
+                        <div class="d-flex justify-content-center align-items-center gap-3 flex-wrap mb-2">
+                            <img src="iocl-logo.png" alt="IOCL" style="height:25px;" />
+                            <span class="small text-muted">Indian Oil Corporation Limited</span>
+                            <span class="small text-muted">|</span>
+                            <span class="small text-muted">Panipat Refinery (15 MMTPA)</span>
+                            <span class="small text-muted">|</span>
+                            <span class="small text-muted">ISO 14001 & ISO 9001 Certified</span>
+                        </div>
+                        <p class="small text-muted mb-0">© ${new Date().getFullYear()} IOCL | All Rights Reserved</p>
+                    </footer>
+                </div>
+
+                <div id="create-handover-modal-slot"></div>
+            </div>`;
+
+            // Event bindings
+            document.getElementById("logout-btn").addEventListener("click", goLogout);
+            document.getElementById("my-tasks-btn").addEventListener("click", () => navigateTo("#/my-tasks"));
+
+            const reportsBtn = document.getElementById("reports-btn");
+            if (reportsBtn) reportsBtn.addEventListener("click", () => navigateTo("#/reports"));
+
+            const reportsNavBtn = document.getElementById("reports-nav-btn");
+            if (reportsNavBtn) reportsNavBtn.addEventListener("click", () => navigateTo("#/reports"));
+
+            const addEmpBtn = document.getElementById("add-employee-btn");
+            if (addEmpBtn) addEmpBtn.addEventListener("click", () => navigateTo("#/add-employee"));
+
+            const createBtn = document.getElementById("create-handover-btn");
+            if (createBtn) createBtn.addEventListener("click", () => openCreateHandoverModal(user));
+
+            document.getElementById("search-input").addEventListener("input", (e) => {
+                dashboardState.searchTerm = e.target.value;
+                drawDashboard(user);
+                const input = document.getElementById("search-input");
+                input.focus();
+                input.setSelectionRange(input.value.length, input.value.length);
+            });
+
+            document.querySelectorAll(".group-filter-btn").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    dashboardState.selectedGroup = btn.dataset.group;
+                    dashboardState.selectedUnit = "all";
+                    drawDashboard(user);
+                });
+            });
+
+            document.querySelectorAll(".unit-filter-btn").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    dashboardState.selectedUnit = btn.dataset.unit;
+                    drawDashboard(user);
+                });
+            });
+
+            document.querySelectorAll("[data-action]").forEach((btn) => {
+                btn.addEventListener("click", async () => {
+                    const id = btn.dataset.id;
+                    const action = btn.dataset.action;
+                    if (action === "view") navigateTo(`#/handover/${id}`);
+                    else if (action === "edit") navigateTo(`#/handover/edit/${id}`);
+                    else if (action === "delete") {
+                        if (window.confirm("Delete this handover report?")) {
+                            try {
+                                await API.deleteHandover(id);
+                                await renderDashboard(user);
+                            } catch (err) {
+                                alert("Failed to delete");
+                            }
+                        }
+                    }
+                });
+            });
+        }
+
+        /* ============================================================
+           CREATE HANDOVER MODAL
+           ============================================================ */
+        function openCreateHandoverModal(user) {
+            const slot = document.getElementById("create-handover-modal-slot");
+            slot.innerHTML = `
+            <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content rounded-4">
+                        <div class="modal-header border-0 rounded-top-4" style="background: linear-gradient(90deg, #ff9800, #e65100);">
+                            <h5 class="modal-title fw-bold text-white"><i class="bi bi-file-plus me-2"></i>Create Handover Report</h5>
+                            <button type="button" id="close-create-modal" class="btn-close btn-close-white"></button>
+                        </div>
+                        <form id="create-handover-form">
+                            <div class="modal-body p-4">
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">Select Unit *</label>
+                                    <select id="ch-unit" class="form-select rounded-pill" required>
+                                        <option value="">-- Select Unit --</option>
+                                        ${refineryUnits.map((u) => `<option value="${esc(u.id)}">${esc(u.name)} (${esc(u.capacity)})</option>`).join("")}
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">Shift</label>
+                                    <select id="ch-shift" class="form-select rounded-pill">
+                                        <option value="Morning">🌅 Morning Shift (6AM - 2PM)</option>
+                                        <option value="Evening">🌇 Evening Shift (2PM - 10PM)</option>
+                                        <option value="Night">🌙 Night Shift (10PM - 6AM)</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">Work Summary</label>
+                                    <textarea id="ch-summary" class="form-control" rows="4" placeholder="Describe work done, pending tasks, equipment status..." required></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">Status</label>
+                                    <div class="d-flex gap-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="ch-status" id="ch-status-draft" value="Draft" checked />
+                                            <label class="form-check-label" for="ch-status-draft">📝 Draft</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="ch-status" id="ch-status-submitted" value="Submitted" />
+                                            <label class="form-check-label" for="ch-status-submitted">✅ Submitted</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer border-0 pb-4 pe-4">
+                                <button type="button" id="cancel-create-modal" class="btn btn-secondary rounded-pill">Cancel</button>
+                                <button type="submit" id="create-handover-submit" class="btn rounded-pill px-4 text-white" style="background: linear-gradient(90deg, #ff9800, #e65100);">
+                                    <i class="bi bi-save me-2"></i>Create Report
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>`;
+
+            const close = () => { slot.innerHTML = ""; };
+            document.getElementById("close-create-modal").addEventListener("click", close);
+            document.getElementById("cancel-create-modal").addEventListener("click", close);
+
+            document.getElementById("create-handover-form").addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const submitBtn = document.getElementById("create-handover-submit");
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>Creating...`;
+
+                const unitId = document.getElementById("ch-unit").value;
+                const unitData = refineryUnits.find((u) => u.id === unitId);
+                const status = document.querySelector('input[name="ch-status"]:checked').value;
+
+                try {
+                    await API.createHandover({
+                        shiftName: document.getElementById("ch-shift").value,
+                        summary: document.getElementById("ch-summary").value,
+                        status,
+                        unit: unitId,
+                        unitName: unitData?.name || unitId,
+                        createdBy: user?.id || 1,
+                        date: new Date().toISOString(),
+                    });
+                    close();
+                    await renderDashboard(user);
+                } catch (err) {
+                    alert("Failed to create handover");
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = `<i class="bi bi-save me-2"></i>Create Report`;
+                }
+            });
+        }
+
+        /* ============================================================
+           PAGE: HANDOVER DETAILS
+           ============================================================ */
+        async function renderHandoverDetails(user, id) {
+            root.innerHTML = spinner();
+            let handover = null;
+            try {
+                handover = await API.getHandover(id);
+            } catch (err) {
+                console.error("Error:", err);
+            }
+
+            if (!handover) {
+                root.innerHTML = `<div class="min-vh-100 d-flex align-items-center justify-content-center" style="background:#fff5eb;"><p class="text-muted">Handover not found</p></div>`;
+                return;
+            }
+
+            const canAddTask = user?.role === "Admin" || user?.role === "Supervisor";
+            const date = new Date(handover.date);
+
+            root.innerHTML = `
+            <div class="min-vh-100" style="background:#fff5eb;">
+                <nav class="navbar shadow-sm" style="background: linear-gradient(90deg, #ff9800, #e65100);">
+                    <div class="container-fluid px-4">
+                        <div class="d-flex align-items-center gap-3">
+                            <img src="iocl-logo.png" alt="IOCL" style="height:40px;background:white;padding:5px;border-radius:10px;" />
+                            <span class="text-white fw-bold">Handover Details</span>
+                        </div>
+                        <button id="back-to-dashboard" class="btn btn-outline-light btn-sm rounded-pill">Back</button>
+                    </div>
+                </nav>
+
+                <div class="container py-4">
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card border-0 shadow-sm mb-4">
+                                <div class="card-body p-4">
+                                    <div class="d-flex justify-content-between align-items-start mb-3">
+                                        <div>
+                                            <h2 class="fw-bold" style="color:#e65100;">Handover Report #${handover.id}</h2>
+                                            <p class="text-muted mb-1"><i class="bi bi-calendar me-1"></i>${date.toLocaleString()} | ${esc(handover.shiftName)} Shift</p>
+                                            ${handover.unitName ? `<p class="text-muted"><i class="bi bi-building me-1"></i>Unit: ${esc(handover.unitName)}</p>` : ""}
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <span class="badge ${handover.status === "Submitted" ? "bg-success" : "bg-warning"} p-2">${esc(handover.status)}</span>
+                                            ${user?.role === "Admin" ? `<button id="delete-handover-btn" class="btn btn-outline-danger btn-sm rounded-pill"><i class="bi bi-trash me-1"></i>Delete</button>` : ""}
+                                        </div>
+                                    </div>
+                                    <div class="mt-4">
+                                        <h5 class="fw-semibold" style="color:#e65100;">Summary</h5>
+                                        <p class="text-muted bg-light p-3 rounded-3">${esc(handover.summary)}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-white border-0 pt-4 pb-0">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <h4 class="fw-bold mb-0" style="color:#e65100;"><i class="bi bi-list-check me-2"></i>Tasks</h4>
+                                        ${canAddTask ? `<button id="add-task-btn" class="btn btn-danger rounded-pill px-4" style="background: linear-gradient(90deg, #ff9800, #e65100); border:none;"><i class="bi bi-plus-circle me-2"></i>Add Task</button>` : ""}
+                                    </div>
+                                </div>
+                                <div class="card-body p-4" id="task-list-slot">Loading tasks...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="task-form-modal-slot"></div>
+            </div>`;
+
+            document.getElementById("back-to-dashboard").addEventListener("click", () => navigateTo("#/dashboard"));
+            const delBtn = document.getElementById("delete-handover-btn");
+            if (delBtn) delBtn.addEventListener("click", async () => {
+                if (window.confirm("Delete this handover report?")) {
+                    await API.deleteHandover(id);
+                    navigateTo("#/dashboard");
+                }
+            });
+            const addTaskBtn = document.getElementById("add-task-btn");
+            if (addTaskBtn) addTaskBtn.addEventListener("click", () => openTaskFormModal(handover.id, user));
+
+            await drawTaskList(handover.id, user);
+        }
+
+        /* ============================================================
+           DRAW TASK LIST (with Remarks)
+           ============================================================ */
+        async function drawTaskList(handoverId, user) {
+            const slot = document.getElementById("task-list-slot");
+            slot.innerHTML = `<div class="text-center py-4">Loading tasks...</div>`;
+            let tasks = [];
+            try {
+                tasks = (await API.getTasksByHandover(handoverId)) || [];
+            } catch (err) {
+                console.error("Error:", err);
+                tasks = [];
+            }
+
+            const canUpdate = user?.role === "Admin" || user?.role === "Supervisor" || user?.role === "Operator";
+            const canDelete = user?.role === "Admin";
+
+            if (tasks.length === 0) {
+                slot.innerHTML = `<div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                    <p>No tasks added yet.</p>
+                    ${user?.role === "Admin" || user?.role === "Supervisor" ? `<p class="small">Click "Add Task" to create one.</p>` : ""}
+                </div>`;
+                return;
+            }
+
+            slot.innerHTML = tasks.map((task) => `
+            <div class="border rounded-3 p-3 mb-3 shadow-sm">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                            <h5 class="fw-bold mb-0">${esc(task.title)}</h5>
+                            <span class="badge ${priorityColor(task.priority)}">${esc(task.priority)}</span>
+                            <span class="badge ${statusColor(task.status)}">${task.status === "InProgress" ? "In Progress" : esc(task.status)}</span>
+                        </div>
+                        ${task.description ? `<p class="text-muted mb-2">${esc(task.description)}</p>` : ""}
+                        ${task.assignedUser ? `<p class="small text-muted mb-1"><i class="bi bi-person me-1"></i>Assigned to: ${esc(task.assignedUser.name)}</p>` : ""}
+                        ${task.dueDate ? `<p class="small text-muted"><i class="bi bi-calendar me-1"></i>Due: ${new Date(task.dueDate).toLocaleDateString()}</p>` : ""}
+                        ${task.remarks ? `<div class="task-remarks-bubble"><i class="bi bi-chat-dots me-1"></i>${esc(task.remarks)}</div>` : ""}
+                    </div>
+                    <div class="d-flex gap-2 ms-3 flex-wrap">
+                        ${canUpdate ? `
+                        <div class="d-flex gap-1 align-items-center">
+                            <select class="form-select form-select-sm task-status-select" data-task-id="${task.id}" style="width:130px;">
+                                <option value="Pending" ${task.status === "Pending" ? "selected" : ""}>📋 Pending</option>
+                                <option value="InProgress" ${task.status === "InProgress" ? "selected" : ""}>🔄 In Progress</option>
+                                <option value="Completed" ${task.status === "Completed" ? "selected" : ""}>✅ Completed</option>
+                            </select>
+                            <button class="btn btn-outline-primary btn-sm rounded-pill task-remarks-btn" data-task-id="${task.id}" title="Add Remarks"><i class="bi bi-chat-dots"></i></button>
+                        </div>` : ""}
+                        ${canDelete ? `<button class="btn btn-outline-danger btn-sm rounded-pill task-delete-btn" data-task-id="${task.id}"><i class="bi bi-trash"></i></button>` : ""}
+                    </div>
+                </div>
+            </div>`).join("");
+
+            // Status change handler with remarks
+            slot.querySelectorAll(".task-status-select").forEach((sel) => {
+                sel.addEventListener("change", async () => {
+                    const taskId = sel.dataset.taskId;
+                    const newStatus = sel.value;
+                    
+                    const remarks = prompt(`Enter remarks for status change to "${newStatus}":`, "");
+                    if (remarks === null) {
+                        sel.value = sel.getAttribute('data-previous') || 'Pending';
+                        return;
+                    }
+
+                    sel.disabled = true;
+                    try {
+                        await API.updateTaskStatus(taskId, { status: newStatus, remarks: remarks || "" });
+                        await drawTaskList(handoverId, user);
+                    } catch (err) {
+                        alert("Failed to update status");
+                        sel.disabled = false;
+                    }
+                });
+                sel.addEventListener('focus', function() {
+                    this.setAttribute('data-previous', this.value);
+                });
+            });
+
+            // Remarks button handler
+            slot.querySelectorAll(".task-remarks-btn").forEach((btn) => {
+                btn.addEventListener("click", async () => {
+                    const taskId = btn.dataset.taskId;
+                    const task = tasks.find(t => t.id === parseInt(taskId));
+                    const remarks = prompt(`Add remarks for task "${task?.title || taskId}":`, task?.remarks || "");
+                    if (remarks === null) return;
+                    
+                    try {
+                        await API.updateTask(taskId, {
+                            ...task,
+                            remarks: remarks || ""
+                        });
+                        await drawTaskList(handoverId, user);
+                    } catch (err) {
+                        alert("Failed to update remarks");
+                    }
+                });
+            });
+
+            slot.querySelectorAll(".task-delete-btn").forEach((btn) => {
+                btn.addEventListener("click", async () => {
+                    if (window.confirm("Delete this task?")) {
+                        await API.deleteTask(btn.dataset.taskId);
+                        await drawTaskList(handoverId, user);
+                    }
+                });
+            });
+        }
+
+        /* ============================================================
+           TASK FORM MODAL (with Remarks)
+           ============================================================ */
+        async function openTaskFormModal(handoverId, user) {
+            const slot = document.getElementById("task-form-modal-slot");
+            let users = [];
+            try {
+                users = (await API.getUsers()) || [];
+            } catch (err) {
+                console.error("Error fetching users:", err);
+            }
+
+            slot.innerHTML = `
+            <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content rounded-4">
+                        <div class="modal-header border-0 rounded-top-4" style="background: linear-gradient(90deg, #ff9800, #e65100);">
+                            <h5 class="modal-title fw-bold text-white"><i class="bi bi-plus-circle me-2"></i>Add New Task</h5>
+                            <button type="button" id="close-task-form" class="btn-close btn-close-white"></button>
+                        </div>
+                        <form id="task-form">
+                            <div class="modal-body p-4">
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold" style="color:#e65100;">Task Title *</label>
+                                    <input type="text" id="tf-title" class="form-control rounded-pill" placeholder="Enter task title" required />
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold" style="color:#e65100;">Description</label>
+                                    <textarea id="tf-description" class="form-control" rows="3" placeholder="Describe the task in detail..."></textarea>
+                                </div>
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold" style="color:#e65100;">Priority</label>
+                                        <select id="tf-priority" class="form-select rounded-pill">
+                                            <option value="High">🔴 High - Urgent</option>
+                                            <option value="Medium" selected>🟡 Medium - Normal</option>
+                                            <option value="Low">🟢 Low - Later</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold" style="color:#e65100;">Due Date</label>
+                                        <input type="date" id="tf-duedate" class="form-control rounded-pill" value="${new Date().toISOString().split("T")[0]}" />
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold" style="color:#e65100;"><i class="bi bi-person-badge me-1"></i>Assign To</label>
+                                    <select id="tf-assignedto" class="form-select rounded-pill">
+                                        <option value="">-- Select Employee --</option>
+                                        ${users.map((u) => `<option value="${u.id}">${esc(u.name)} (${esc(u.role)} - ${esc(u.department)})</option>`).join("")}
+                                    </select>
+                                    <small class="text-muted d-block mt-1"><i class="bi bi-info-circle me-1"></i>Select the employee who will work on this task</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold" style="color:#e65100;"><i class="bi bi-chat-dots me-1"></i>Initial Remarks</label>
+                                    <textarea id="tf-remarks" class="form-control" rows="2" placeholder="Any initial remarks or notes..."></textarea>
+                                </div>
+                            </div>
+                            <div class="modal-footer border-0 pb-4 pe-4">
+                                <button type="button" id="cancel-task-form" class="btn btn-secondary rounded-pill">Cancel</button>
+                                <button type="submit" id="task-form-submit" class="btn rounded-pill px-4 text-white" style="background: linear-gradient(90deg, #ff9800, #e65100);"><i class="bi bi-save me-2"></i>Add Task</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>`;
+
+            const close = () => { slot.innerHTML = ""; };
+            document.getElementById("close-task-form").addEventListener("click", close);
+            document.getElementById("cancel-task-form").addEventListener("click", close);
+
+            document.getElementById("task-form").addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const submitBtn = document.getElementById("task-form-submit");
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span>Adding...`;
+
+                const assignedTo = document.getElementById("tf-assignedto").value;
+                try {
+                    await API.createTask({
+                        title: document.getElementById("tf-title").value,
+                        description: document.getElementById("tf-description").value,
+                        priority: document.getElementById("tf-priority").value,
+                        assignedTo: assignedTo ? parseInt(assignedTo) : null,
+                        dueDate: document.getElementById("tf-duedate").value,
+                        handoverId,
+                        status: "Pending",
+                        remarks: document.getElementById("tf-remarks").value || "",
+                    });
+                    close();
+                    await drawTaskList(handoverId, user);
+                } catch (err) {
+                    alert("Failed to create task");
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = `<i class="bi bi-save me-2"></i>Add Task`;
+                }
+            });
+        }
+
+        /* ============================================================
+           PAGE: EDIT HANDOVER
+           ============================================================ */
+        async function renderEditHandover(user, id) {
+            root.innerHTML = spinner();
+
+            let handoverRes, tasksRes, usersRes;
+            try {
+                [handoverRes, tasksRes, usersRes] = await Promise.all([
+                    API.getHandover(id),
+                    API.getTasksByHandover(id),
+                    API.getUsers(),
+                ]);
+            } catch (err) {
+                console.error("Error fetching data:", err);
+                root.innerHTML = `<div class="container py-4"><div class="alert alert-danger">Failed to load data</div></div>`;
+                return;
+            }
+
+            const tasks = tasksRes || [];
+            const users = usersRes || [];
+            const canReassign = user?.role === "Admin" || user?.role === "Supervisor";
+
+            const tasksTableHtml = tasks.length === 0 ?
+                `<div class="text-center py-4 text-muted"><i class="bi bi-inbox fs-1 d-block mb-2"></i><p>No tasks found for this handover.</p></div>` :
+                `<div class="table-responsive"><table class="table table-hover">
+                    <thead style="background:#fff3e0;"><tr><th>Task</th><th>Priority</th><th>Status</th><th>Assigned To</th><th>Remarks</th><th>Actions</th></tr></thead>
+                    <tbody>
+                        ${tasks.map((task) => `
+                        <tr>
+                            <td class="fw-semibold">${esc(task.title)}</td>
+                            <td><span class="badge ${priorityColor(task.priority)}">${esc(task.priority)}</span></td>
+                            <td><span class="badge ${statusColor(task.status)}">${task.status === "InProgress" ? "In Progress" : esc(task.status)}</span></td>
+                            <td>${task.assignedUser ? `<span class="badge bg-info text-dark">${esc(task.assignedUser.name)}</span>` : `<span class="badge bg-secondary">Not assigned</span>`}</td>
+                            <td>${task.remarks ? `<span class="badge bg-light text-dark border"><i class="bi bi-chat-dots me-1"></i>${esc(task.remarks.substring(0, 30))}${task.remarks.length > 30 ? '...' : ''}</span>` : '-'}</td>
+                            <td>${canReassign ? `<button class="btn btn-warning btn-sm rounded-pill reassign-btn" data-task-id="${task.id}"><i class="bi bi-arrow-repeat me-1"></i>Reassign</button>` : ""}</td>
+                        </tr>`).join("")}
+                    </tbody>
+                </table></div>`;
+
+            root.innerHTML = `
+            <div class="min-vh-100" style="background:#fff5eb;">
+                <nav class="navbar shadow-sm" style="background: linear-gradient(90deg, #ff9800, #e65100);">
+                    <div class="container-fluid px-4">
+                        <div class="d-flex align-items-center gap-3">
+                            <img src="iocl-logo.png" alt="IOCL" style="height:40px;background:white;padding:5px;border-radius:10px;" />
+                            <span class="text-white fw-bold">Edit Handover Report</span>
+                        </div>
+                        <button id="back-to-dashboard" class="btn btn-outline-light btn-sm rounded-pill">Back</button>
+                    </div>
+                </nav>
+
+                <div class="container py-4">
+                    <div class="row">
+                        <div class="col-lg-8 mx-auto">
+                            <button id="back-to-details" class="btn btn-link text-decoration-none mb-3" style="color:#e65100;">← Back to Details</button>
+
+                            <div class="card shadow border-0 rounded-4 mb-4">
+                                <div class="card-body p-4">
+                                    <h4 class="fw-bold mb-4" style="color:#e65100;">Edit Handover Report</h4>
+                                    <div id="edit-error"></div>
+                                    <form id="edit-handover-form">
+                                        <div class="mb-3">
+                                            <label class="form-label fw-semibold">Shift</label>
+                                            <select id="eh-shift" class="form-select rounded-pill">
+                                                <option value="Morning" ${handoverRes.shiftName === "Morning" ? "selected" : ""}>🌅 Morning Shift (6AM - 2PM)</option>
+                                                <option value="Evening" ${handoverRes.shiftName === "Evening" ? "selected" : ""}>🌇 Evening Shift (2PM - 10PM)</option>
+                                                <option value="Night" ${handoverRes.shiftName === "Night" ? "selected" : ""}>🌙 Night Shift (10PM - 6AM)</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label fw-semibold">Work Summary</label>
+                                            <textarea id="eh-summary" class="form-control" rows="5" required>${esc(handoverRes.summary)}</textarea>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label fw-semibold">Status</label>
+                                            <select id="eh-status" class="form-select rounded-pill">
+                                                <option value="Draft" ${handoverRes.status === "Draft" ? "selected" : ""}>📝 Draft</option>
+                                                <option value="Submitted" ${handoverRes.status === "Submitted" ? "selected" : ""}>✅ Submitted</option>
+                                            </select>
+                                        </div>
+                                        <div class="d-flex gap-3 mt-4">
+                                            <button type="submit" id="eh-save-btn" class="btn px-4 py-2 text-white rounded-pill" style="background: linear-gradient(90deg, #ff9800, #e65100);">💾 Save Changes</button>
+                                            <button type="button" id="eh-cancel-btn" class="btn btn-secondary rounded-pill">Cancel</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <div class="card shadow border-0 rounded-4">
+                                <div class="card-header bg-white border-0 pt-4 pb-0">
+                                    <h4 class="fw-bold" style="color:#e65100;"><i class="bi bi-list-check me-2"></i>Tasks<span class="badge bg-secondary ms-2">${tasks.length}</span></h4>
+                                </div>
+                                <div class="card-body p-4">${tasksTableHtml}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="reassign-modal-slot"></div>
+            </div>`;
+
+            document.getElementById("back-to-dashboard").addEventListener("click", () => navigateTo("#/dashboard"));
+            document.getElementById("back-to-details").addEventListener("click", () => navigateTo(`#/handover/${id}`));
+            document.getElementById("eh-cancel-btn").addEventListener("click", () => navigateTo(`#/handover/${id}`));
+
+            document.getElementById("edit-handover-form").addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const saveBtn = document.getElementById("eh-save-btn");
+                const errorBox = document.getElementById("edit-error");
+                errorBox.innerHTML = "";
+                saveBtn.disabled = true;
+                saveBtn.textContent = "Saving...";
+                try {
+                    await API.updateHandover(id, {
+                        shiftName: document.getElementById("eh-shift").value,
+                        summary: document.getElementById("eh-summary").value,
+                        status: document.getElementById("eh-status").value,
+                        unitName: handoverRes.unitName || "",
+                    });
+                    alert("✅ Handover updated successfully!");
+                    navigateTo(`#/handover/${id}`);
+                } catch (err) {
+                    console.error("Error updating handover:", err);
+                    errorBox.innerHTML = `<div class="alert alert-danger py-2 mb-3">Failed to update handover: ${esc(err.response?.data?.message || err.message)}</div>`;
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = "💾 Save Changes";
+                }
+            });
+
+            document.querySelectorAll(".reassign-btn").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    const task = tasks.find((t) => String(t.id) === String(btn.dataset.taskId));
+                    openReassignModal(id, task, users, user);
+                });
+            });
+        }
+
+        function openReassignModal(handoverId, task, users, currentUser) {
+            const slot = document.getElementById("reassign-modal-slot");
+            const eligibleUsers = users.filter(
+                (u) =>
+                    u.id !== task.assignedTo &&
+                    (currentUser?.role === "Admin" ||
+                        u.shiftAssigned === currentUser?.shiftAssigned)
+            );
+
+            slot.innerHTML = `
+            <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content rounded-4">
+                        <div class="modal-header border-0 rounded-top-4" style="background: linear-gradient(90deg, #ff9800, #e65100);">
+                            <h5 class="modal-title fw-bold text-white">Reassign Task</h5>
+                            <button type="button" id="close-reassign" class="btn-close btn-close-white"></button>
+                        </div>
+                        <div class="modal-body p-4">
+                            <div class="mb-3"><label class="form-label fw-semibold">Task</label><p class="bg-light p-2 rounded">${esc(task.title)}</p></div>
+                            <div class="mb-3"><label class="form-label fw-semibold">Current Assignee</label><p class="text-muted">${esc(task.assignedUser?.name || "Not assigned")}</p></div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Assign To</label>
+                                <select id="reassign-select" class="form-select rounded-pill">
+                                    <option value="">-- Select Employee --</option>
+                                    ${eligibleUsers.map((u) => `<option value="${u.id}">${esc(u.name)} (${esc(u.role)} - ${esc(u.department)})</option>`).join("")}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="modal-footer border-0 pb-4 pe-4">
+                            <button type="button" id="cancel-reassign" class="btn btn-secondary rounded-pill">Cancel</button>
+                            <button type="button" id="confirm-reassign" class="btn rounded-pill px-4 text-white" style="background: linear-gradient(90deg, #ff9800, #e65100);">Confirm Reassign</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+
+            const close = () => { slot.innerHTML = ""; };
+            document.getElementById("close-reassign").addEventListener("click", close);
+            document.getElementById("cancel-reassign").addEventListener("click", close);
+
+            document.getElementById("confirm-reassign").addEventListener("click", async () => {
+                const selectedUser = document.getElementById("reassign-select").value;
+                if (!selectedUser) {
+                    alert("Please select an employee");
+                    return;
+                }
+                const confirmBtn = document.getElementById("confirm-reassign");
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = "Reassigning...";
+                try {
+                    await API.reassignTask(task.id, parseInt(selectedUser));
+                    alert("✅ Task reassigned successfully!");
+                    close();
+                    await renderEditHandover(currentUser, handoverId);
+                } catch (err) {
+                    console.error("Reassign error:", err);
+                    alert("❌ Failed to reassign task: " + (err.response?.data?.message || err.message));
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = "Confirm Reassign";
+                }
+            });
+        }
+
+        /* ============================================================
+           PAGE: ADD EMPLOYEE
+           ============================================================ */
+        const quickAddTemplates = {
+            A: {
+                name: "Rajesh Kumar",
+                email: "rajesh.kumar@iocl.com",
+                password: "Super@123",
+                role: "Supervisor",
+                department: "Operations",
+                employeeId: "IOCL/A/001",
+                shiftAssigned: "Morning",
+                batch: "A",
+            },
+            B: {
+                name: "Vikram Singh",
+                email: "vikram.singh@iocl.com",
+                password: "Super@123",
+                role: "Operator",
+                department: "DCU",
+                employeeId: "IOCL/B/001",
+                shiftAssigned: "Morning",
+                batch: "B",
+            },
+            C: {
+                name: "Sunil Mehta",
+                email: "sunil.mehta@iocl.com",
+                password: "Super@123",
+                role: "Operator",
+                department: "Laboratory",
+                employeeId: "IOCL/C/001",
+                shiftAssigned: "General",
+                batch: "C",
+            },
+            General: {
+                name: "Ramesh Chand",
+                email: "ramesh.c@iocl.com",
+                password: "Op@123",
+                role: "Worker",
+                department: "CDU",
+                employeeId: "IOCL/G/001",
+                shiftAssigned: "Morning",
+                batch: "General",
+            },
+        };
+
+        function renderAddEmployee(user) {
+            root.innerHTML = `
+            <div class="min-vh-100" style="background:#fff5eb;">
+                <nav class="navbar shadow-sm" style="background: linear-gradient(90deg, #ff9800, #e65100);">
+                    <div class="container-fluid px-4">
+                        <div class="d-flex align-items-center gap-3">
+                            <img src="iocl-logo.png" alt="IOCL" style="height:40px;background:white;padding:5px;border-radius:10px;" />
+                            <span class="text-white fw-bold">Add New Employee</span>
+                        </div>
+                        <button id="ae-back-nav-btn" class="btn btn-outline-light btn-sm rounded-pill">Back</button>
+                    </div>
+                </nav>
+
+                <div class="container py-4" style="max-width:700px;">
+                    <button id="ae-back-btn" class="btn btn-link text-decoration-none mb-3" style="color:#e65100;">← Back to Dashboard</button>
+
+                    <div class="card shadow-sm rounded-4 p-4">
+                        <h2 class="h4 fw-bold mb-1">Register New Employee</h2>
+                        <p class="text-muted small mb-4">Fill in the details below to add a new employee</p>
+
+                        <div id="ae-message"></div>
+
+                        <form id="ae-form">
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Full Name *</label>
+                                <input type="text" id="ae-name" class="form-control rounded-3" placeholder="Enter employee full name" required />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Email *</label>
+                                <input type="email" id="ae-email" class="form-control rounded-3" placeholder="employee@iocl.com" required />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Password *</label>
+                                <input type="text" id="ae-password" class="form-control rounded-3" placeholder="Admin@123 / Super@123 / Op@123" required />
+                                <p class="text-muted small mt-1 mb-0">Suggested: Admin@123 for Admins, Super@123 for Supervisors/Operators, Op@123 for Workers</p>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Role *</label>
+                                <select id="ae-role" class="form-select rounded-3">
+                                    <option value="Admin">👑 Admin</option>
+                                    <option value="Supervisor">👔 Supervisor</option>
+                                    <option value="Operator" selected>🔧 Operator</option>
+                                    <option value="Worker">🛠️ Worker</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Department / Unit</label>
+                                <input type="text" id="ae-department" class="form-control rounded-3" placeholder="e.g., CDU, RFCCU, Management, HR, Laboratory" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Employee ID</label>
+                                <input type="text" id="ae-employeeid" class="form-control rounded-3" placeholder="e.g., IOCL/A/001" />
+                                <p class="text-muted small mt-1 mb-0">Format: IOCL/BATCH/XXX (e.g., IOCL/A/001, IOCL/G/025)</p>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Shift Assigned</label>
+                                <select id="ae-shift" class="form-select rounded-3">
+                                    <option value="Morning" selected>🌅 Morning (6:00 AM - 2:00 PM)</option>
+                                    <option value="Evening">🌇 Evening (2:00 PM - 10:00 PM)</option>
+                                    <option value="Night">🌙 Night (10:00 PM - 6:00 AM)</option>
+                                    <option value="General">📋 General (Day Shift)</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Batch</label>
+                                <select id="ae-batch" class="form-select rounded-3">
+                                    <option value="A">Batch A - Officers (Management)</option>
+                                    <option value="B">Batch B - Officers (Operations)</option>
+                                    <option value="C">Batch C - Officers (Technical)</option>
+                                    <option value="General" selected>General - Workers (Field Staff)</option>
+                                </select>
+                            </div>
+                            <button type="submit" id="ae-submit-btn" class="btn w-100 text-white fw-semibold py-2 rounded-3" style="background: linear-gradient(90deg, #ea580c, #dc2626);">+ Add Employee</button>
+                        </form>
+                    </div>
+
+                    <div class="card shadow-sm rounded-4 p-4 mt-4">
+                        <h3 class="fw-semibold mb-1 d-flex align-items-center gap-2"><i class="bi bi-lightning-fill text-warning"></i>Quick Add Templates (Batch-wise)</h3>
+                        <p class="text-muted small mb-3">Click on any template to auto-fill the form, then click "Add Employee"</p>
+                        <div class="row g-2">
+                            <div class="col-6 col-md-3"><button type="button" class="btn w-100 quick-add-btn" data-batch="A" style="background:#eff6ff;color:#1d4ed8;">📋 Batch A<br><span class="small">Officer (Management)</span></button></div>
+                            <div class="col-6 col-md-3"><button type="button" class="btn w-100 quick-add-btn" data-batch="B" style="background:#f0fdf4;color:#15803d;">⚙️ Batch B<br><span class="small">Officer (Operations)</span></button></div>
+                            <div class="col-6 col-md-3"><button type="button" class="btn w-100 quick-add-btn" data-batch="C" style="background:#faf5ff;color:#7e22ce;">🔬 Batch C<br><span class="small">Officer (Technical)</span></button></div>
+                            <div class="col-6 col-md-3"><button type="button" class="btn w-100 quick-add-btn" data-batch="General" style="background:#fff7ed;color:#c2410c;">🛠️ General<br><span class="small">Worker (Field)</span></button></div>
+                        </div>
+                    </div>
+
+                    <div class="rounded-4 p-4 mt-4" style="background:#fff7ed;border:1px solid #fed7aa;">
+                        <p class="fw-semibold mb-1" style="color:#9a3412;"><i class="bi bi-info-circle me-1"></i>Employee Registration Guidelines</p>
+                        <p class="small mb-0" style="color:#c2410c;">
+                            • Admin role: Full system access, can add/edit/delete any data<br>
+                            • Supervisor role: Can manage handovers for their shift<br>
+                            • Operator role: Can view and update tasks<br>
+                            • Worker role: Limited access, can view assigned tasks only<br>
+                            • Email must be unique for each employee
+                        </p>
+                    </div>
+                </div>
+            </div>`;
+
+            document.getElementById("ae-back-btn").addEventListener("click", () => navigateTo("#/dashboard"));
+
+            function setFormValues(data) {
+                document.getElementById("ae-name").value = data.name || "";
+                document.getElementById("ae-email").value = data.email || "";
+                document.getElementById("ae-password").value = data.password || "";
+                document.getElementById("ae-role").value = data.role || "Operator";
+                document.getElementById("ae-department").value = data.department || "";
+                document.getElementById("ae-employeeid").value = data.employeeId || "";
+                document.getElementById("ae-shift").value = data.shiftAssigned || "Morning";
+                document.getElementById("ae-batch").value = data.batch || "General";
+            }
+
+            document.querySelectorAll(".quick-add-btn").forEach((btn) => {
+                btn.addEventListener("click", () => setFormValues(quickAddTemplates[btn.dataset.batch]));
+            });
+
+            document.getElementById("ae-form").addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const submitBtn = document.getElementById("ae-submit-btn");
+                const msgBox = document.getElementById("ae-message");
+                msgBox.innerHTML = "";
+                submitBtn.disabled = true;
+                submitBtn.textContent = "Adding Employee...";
+
+                const formData = {
+                    name: document.getElementById("ae-name").value,
+                    email: document.getElementById("ae-email").value,
+                    password: document.getElementById("ae-password").value,
+                    role: document.getElementById("ae-role").value,
+                    department: document.getElementById("ae-department").value,
+                    employeeId: document.getElementById("ae-employeeid").value,
+                    shiftAssigned: document.getElementById("ae-shift").value,
+                    batch: document.getElementById("ae-batch").value,
+                };
+
+                try {
+                    await API.register(formData);
+                    msgBox.innerHTML = `<div class="alert alert-success py-2">✅ Employee ${esc(formData.name)} added successfully!</div>`;
+                    setFormValues({ role: "Operator", shiftAssigned: "Morning", batch: "General" });
+                    document.getElementById("ae-form").reset();
+                    document.getElementById("ae-role").value = "Operator";
+                    document.getElementById("ae-shift").value = "Morning";
+                    document.getElementById("ae-batch").value = "General";
+                    setTimeout(() => { msgBox.innerHTML = ""; }, 3000);
+                } catch (err) {
+                    msgBox.innerHTML = `<div class="alert alert-danger py-2">❌ Failed to add employee. Email might already exist.</div>`;
+                    setTimeout(() => { msgBox.innerHTML = ""; }, 3000);
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = "+ Add Employee";
+                }
+            });
+        }
+
+        /* ============================================================
+           PAGE: MY TASKS (with Remarks)
+           ============================================================ */
+        async function renderMyTasks(user) {
+            root.innerHTML = spinner();
+            let tasks = [];
+            try {
+                tasks = (await API.getMyTasks()) || [];
+            } catch (err) {
+                console.error("Error fetching tasks:", err);
+                tasks = [];
+            }
+            drawMyTasks(user, tasks);
+        }
+
+        function drawMyTasks(user, tasks) {
+            const pendingTasks = tasks.filter((t) => t.status !== "Completed").length;
+            const completedTasks = tasks.filter((t) => t.status === "Completed").length;
+            const highPriorityTasks = tasks.filter((t) => t.priority === "High" && t.status !== "Completed").length;
+
+            const tasksHtml = tasks.length === 0 ?
+                `<div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                    <p>No tasks assigned to you yet.</p>
+                    <p class="small text-muted">Check back later or contact your supervisor.</p>
+                </div>` :
+                tasks.map((task) => `
+                <div class="border rounded-3 p-3 mb-3 shadow-sm">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                                <h5 class="fw-bold mb-0">${esc(task.title)}</h5>
+                                <span class="badge ${priorityColor(task.priority)}">${esc(task.priority)}</span>
+                                <span class="badge ${statusColor(task.status)}">${task.status === "InProgress" ? "In Progress" : esc(task.status)}</span>
+                            </div>
+                            ${task.description ? `<p class="text-muted mb-2">${esc(task.description)}</p>` : ""}
+                            <div class="d-flex flex-wrap gap-3 text-muted small">
+                                ${task.handover ? `<span><i class="bi bi-building me-1"></i>${esc(task.handover.unitName || "General")}</span>` : ""}
+                                ${task.dueDate ? `<span><i class="bi bi-calendar me-1"></i>Due: ${new Date(task.dueDate).toLocaleDateString()}</span>` : ""}
+                                ${task.createdByUser ? `<span><i class="bi bi-person me-1"></i>Created by: ${esc(task.createdByUser.name)}</span>` : ""}
+                            </div>
+                            ${task.remarks ? `<div class="task-remarks-bubble mt-2"><i class="bi bi-chat-dots me-1"></i>${esc(task.remarks)}</div>` : ""}
+                        </div>
+                        <div class="d-flex gap-2 ms-3 flex-wrap">
+                            ${task.status !== "Completed" ? `
+                            <div class="d-flex gap-1 align-items-center">
+                                <select class="form-select form-select-sm mytask-status-select" data-task-id="${task.id}" style="width:140px;">
+                                    <option value="Pending" ${task.status === "Pending" ? "selected" : ""}>📋 Pending</option>
+                                    <option value="InProgress" ${task.status === "InProgress" ? "selected" : ""}>🔄 In Progress</option>
+                                    <option value="Completed" ${task.status === "Completed" ? "selected" : ""}>✅ Completed</option>
+                                </select>
+                                <button class="btn btn-outline-primary btn-sm rounded-pill mytask-remarks-btn" data-task-id="${task.id}" title="Add Remarks"><i class="bi bi-chat-dots"></i></button>
+                            </div>` : `<span class="badge bg-success p-2">✅ Completed</span>`}
+                        </div>
+                    </div>
+                </div>`).join("");
+
+            root.innerHTML = `
+            <div style="background:#fff5eb;min-height:100vh;">
+                <nav class="navbar shadow-sm" style="background: linear-gradient(90deg, #ff9800, #e65100);">
+                    <div class="container-fluid px-4">
+                        <div class="d-flex align-items-center gap-3">
+                            <img src="iocl-logo.png" alt="IOCL" style="height:40px;background:white;padding:5px;border-radius:10px;" />
+                            <div>
+                                <span class="navbar-brand text-white fw-bold">My Tasks</span>
+                                <small class="text-white-50 d-block">${esc(user?.name)} (${esc(user?.role)})</small>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button id="mt-dashboard-btn" class="btn btn-outline-light btn-sm rounded-pill">Dashboard</button>
+                            ${user?.role === "Admin" ? `<button id="mt-reports-btn" class="btn btn-outline-light btn-sm rounded-pill"><i class="bi bi-file-earmark-bar-graph me-1"></i>Reports</button>` : ""}
+                            <button id="mt-logout-btn" class="btn btn-outline-light btn-sm rounded-pill">Logout</button>
+                        </div>
+                    </div>
+                </nav>
+
+                <div class="container py-4">
+                    <button id="mt-back-btn" class="btn btn-link text-decoration-none mb-3" style="color:#e65100;">← Back to Dashboard</button>
+
+                    <div class="mb-4">
+                        <h2 class="fw-bold" style="color:#e65100;">My Tasks</h2>
+                        <p class="text-muted">Tasks assigned to you</p>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4"><div class="card border-0 shadow-sm"><div class="card-body"><h6 class="text-muted mb-1">Pending Tasks</h6><h2 class="fw-bold text-warning mb-0">${pendingTasks}</h2></div></div></div>
+                        <div class="col-md-4"><div class="card border-0 shadow-sm"><div class="card-body"><h6 class="text-muted mb-1">Completed Tasks</h6><h2 class="fw-bold text-success mb-0">${completedTasks}</h2></div></div></div>
+                        <div class="col-md-4"><div class="card border-0 shadow-sm"><div class="card-body"><h6 class="text-muted mb-1">High Priority</h6><h2 class="fw-bold text-danger mb-0">${highPriorityTasks}</h2></div></div></div>
+                    </div>
+
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white border-0 pt-4 pb-0"><h4 class="fw-bold" style="color:#e65100;">Tasks Assigned to Me</h4></div>
+                        <div class="card-body p-4" id="mytasks-list">${tasksHtml}</div>
+                    </div>
+
+                    <div class="mt-4 p-3 bg-info bg-opacity-10 rounded-3 border border-info">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-info-circle-fill text-info"></i>
+                            <small class="text-muted">
+                                <strong>Note:</strong> You can only see tasks assigned to you.
+                                ${user?.role === "Admin" ? " As Admin, you can see all tasks." : ""}
+                                ${user?.role === "Supervisor" ? ` As Supervisor, you can see tasks assigned to your shift (${esc(user?.shiftAssigned)}).` : ""}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+
+            document.getElementById("mt-dashboard-btn").addEventListener("click", () => navigateTo("#/dashboard"));
+            document.getElementById("mt-logout-btn").addEventListener("click", goLogout);
+            document.getElementById("mt-back-btn").addEventListener("click", () => navigateTo("#/dashboard"));
+            
+            const mtReportsBtn = document.getElementById("mt-reports-btn");
+            if (mtReportsBtn) mtReportsBtn.addEventListener("click", () => navigateTo("#/reports"));
+
+            document.querySelectorAll(".mytask-status-select").forEach((sel) => {
+                sel.addEventListener("change", async () => {
+                    const taskId = sel.dataset.taskId;
+                    const newStatus = sel.value;
+                    
+                    const remarks = prompt(`Enter remarks for status change to "${newStatus}":`, "");
+                    if (remarks === null) {
+                        sel.value = sel.getAttribute('data-previous') || 'Pending';
+                        return;
+                    }
+
+                    sel.disabled = true;
+                    try {
+                        await API.updateTaskStatus(taskId, { status: newStatus, remarks: remarks || "" });
+                        await renderMyTasks(user);
+                    } catch (err) {
+                        console.error("Status update error:", err);
+                        alert("❌ Failed to update status: " + (err.response?.data?.message || err.message));
+                        sel.disabled = false;
+                    }
+                });
+                sel.addEventListener('focus', function() {
+                    this.setAttribute('data-previous', this.value);
+                });
+            });
+
+            document.querySelectorAll(".mytask-remarks-btn").forEach((btn) => {
+                btn.addEventListener("click", async () => {
+                    const taskId = btn.dataset.taskId;
+                    const task = tasks.find(t => t.id === parseInt(taskId));
+                    const remarks = prompt(`Add remarks for task "${task?.title || taskId}":`, task?.remarks || "");
+                    if (remarks === null) return;
+                    
+                    try {
+                        await API.updateTask(taskId, {
+                            ...task,
+                            remarks: remarks || ""
+                        });
+                        await renderMyTasks(user);
+                    } catch (err) {
+                        alert("Failed to update remarks");
+                    }
+                });
+            });
+        }
+
+        /* ============================================================
+           PAGE: REPORTS (Admin Only)
+           ============================================================ */
+        let reportsState = {
+            reports: [],
+            filteredReports: [],
+        };
+
+        async function renderReports(user) {
+            root.innerHTML = spinner();
+            try {
+                const reports = await API.getReports() || [];
+                reportsState.reports = reports;
+                reportsState.filteredReports = reports;
+                drawReports(user);
+            } catch (err) {
+                console.error('Error loading reports:', err);
+                root.innerHTML = `
+                    <div class="min-vh-100 d-flex align-items-center justify-content-center" style="background:#fff5eb;">
+                        <div class="text-center">
+                            <i class="bi bi-exclamation-triangle fs-1 text-danger"></i>
+                            <p class="mt-3 text-muted">Failed to load reports: ${esc(err.message)}</p>
+                            <button class="btn btn-warning" onclick="renderReports(Auth.getUser())">Retry</button>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function drawReports(user) {
+            const reports = reportsState.filteredReports;
+            const total = reports.length;
+            const submitted = reports.filter(r => r.status === 'Submitted').length;
+            const draft = reports.filter(r => r.status === 'Draft').length;
+            let totalTasks = 0;
+            reports.forEach(r => { if (r.tasks) totalTasks += r.tasks.length; });
+
+            const units = [...new Set(reports.map(r => r.unit).filter(Boolean))];
+
+            const html = `
+                <nav class="navbar navbar-iocl shadow-sm px-4 py-2" style="background: linear-gradient(90deg, #ea580c, #dc2626);">
+                    <div class="container-fluid">
+                        <div class="d-flex align-items-center gap-3">
+                            <img src="iocl-logo.png" alt="IOCL" style="height:40px;background:white;padding:5px;border-radius:10px;" 
+                                 onerror="this.src='https://upload.wikimedia.org/wikipedia/commons/f/f8/Indian_Oil_Logo.svg'" />
+                            <div>
+                                <span class="navbar-brand text-white fw-bold">Admin Reports</span>
+                                <small class="text-white-50 d-block">Shift Handover Management System</small>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center gap-3">
+                            <span class="text-white"><i class="bi bi-person-circle me-1"></i>${esc(user?.name || 'Admin')}</span>
+                            <button id="reports-back-btn" class="btn btn-outline-light btn-sm rounded-pill">
+                                <i class="bi bi-arrow-left me-1"></i>Dashboard
+                            </button>
+                            <button id="reports-logout-btn" class="btn btn-outline-light btn-sm rounded-pill">
+                                <i class="bi bi-box-arrow-right me-1"></i>Logout
+                            </button>
+                        </div>
+                    </div>
+                </nav>
+
+                <div class="container-fluid px-4 py-4">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <div>
+                            <h2 class="fw-bold text-iocl-orange mb-1" style="color:#e65100;"><i class="bi bi-file-earmark-bar-graph me-2"></i>Reports Dashboard</h2>
+                            <p class="text-muted small">View and analyze all handover reports across refinery units</p>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button id="export-csv-btn" class="btn btn-success btn-sm rounded-pill">
+                                <i class="bi bi-download me-1"></i>Export CSV
+                            </button>
+                            <button id="print-reports-btn" class="btn btn-secondary btn-sm rounded-pill">
+                                <i class="bi bi-printer me-1"></i>Print
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3">
+                            <div class="stats-card d-flex justify-content-between align-items-center">
+                                <div><h6 class="text-muted mb-1">Total Reports</h6><h3 class="fw-bold text-iocl-orange mb-0" style="color:#e65100;">${total}</h3></div>
+                                <div class="bg-iocl-light rounded-circle p-3"><i class="bi bi-files fs-4 text-iocl-orange" style="color:#e65100;"></i></div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stats-card d-flex justify-content-between align-items-center">
+                                <div><h6 class="text-muted mb-1">Submitted</h6><h3 class="fw-bold text-success mb-0">${submitted}</h3></div>
+                                <div class="bg-success bg-opacity-10 rounded-circle p-3"><i class="bi bi-check-circle fs-4 text-success"></i></div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stats-card d-flex justify-content-between align-items-center">
+                                <div><h6 class="text-muted mb-1">Draft</h6><h3 class="fw-bold text-warning mb-0">${draft}</h3></div>
+                                <div class="bg-warning bg-opacity-10 rounded-circle p-3"><i class="bi bi-pencil-square fs-4 text-warning"></i></div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stats-card d-flex justify-content-between align-items-center">
+                                <div><h6 class="text-muted mb-1">Total Tasks</h6><h3 class="fw-bold text-primary mb-0">${totalTasks}</h3></div>
+                                <div class="bg-primary bg-opacity-10 rounded-circle p-3"><i class="bi bi-list-check fs-4 text-primary"></i></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="filter-section mb-4">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="fw-semibold small text-muted"><i class="bi bi-calendar-range me-1"></i>Date Range</label>
+                                <div class="d-flex gap-2 align-items-center">
+                                    <input type="date" id="report-date-from" class="form-control form-control-sm" style="width:140px;" />
+                                    <span class="text-muted">to</span>
+                                    <input type="date" id="report-date-to" class="form-control form-control-sm" style="width:140px;" />
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="fw-semibold small text-muted"><i class="bi bi-building me-1"></i>Unit</label>
+                                <select id="report-unit-filter" class="form-select form-select-sm">
+                                    <option value="all">All Units</option>
+                                    ${units.map(u => `<option value="${esc(u)}">${esc(getUnitName(u))}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="fw-semibold small text-muted"><i class="bi bi-shift me-1"></i>Shift</label>
+                                <select id="report-shift-filter" class="form-select form-select-sm">
+                                    <option value="all">All Shifts</option>
+                                    <option value="Morning">Morning</option>
+                                    <option value="Evening">Evening</option>
+                                    <option value="Night">Night</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="fw-semibold small text-muted"><i class="bi bi-search me-1"></i>Search</label>
+                                <input type="text" id="report-search" class="form-control form-control-sm" placeholder="Search by summary, unit..." />
+                            </div>
+                        </div>
+                        <div class="mt-3 d-flex gap-2">
+                            <button id="report-apply-filters" class="btn btn-sm btn-warning" style="background:linear-gradient(90deg,#ff9800,#e65100);color:white;border:none;border-radius:50px;padding:8px 24px;font-weight:600;">Apply Filters</button>
+                            <button id="report-clear-filters" class="btn btn-sm btn-outline-secondary">Clear</button>
+                        </div>
+                    </div>
+
+                    ${reports.length === 0 ? `
+                        <div class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                            <p>No reports found matching the filters.</p>
+                        </div>
+                    ` : reports.map(report => {
+                        const tasks = report.tasks || [];
+                        const creatorName = report.creator?.name || 'Unknown';
+                        const statusBadge = report.status === 'Submitted' ? 
+                            '<span class="badge status-badge-submitted">✅ Submitted</span>' : 
+                            '<span class="badge status-badge-draft">📝 Draft</span>';
+                        const shiftBadge = report.shiftName === 'Morning' ? 
+                            '<span class="badge bg-warning text-dark">Morning</span>' :
+                            report.shiftName === 'Evening' ?
+                            '<span class="badge bg-info text-dark">Evening</span>' :
+                            '<span class="badge bg-secondary text-white">Night</span>';
+
+                        return `
+                        <div class="report-detail-card">
+                            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                                <div>
+                                    <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                                        <span class="fw-bold text-iocl-orange" style="color:#e65100;">#${report.id}</span>
+                                        ${statusBadge} ${shiftBadge}
+                                        <span class="badge bg-light text-dark">${esc(getUnitName(report.unit))}</span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <p class="mb-1">${esc(report.summary || 'No summary')}</p>
+                                        <div class="d-flex flex-wrap gap-3 small text-muted">
+                                            <span><i class="bi bi-calendar3 me-1"></i>${formatDate(report.date)} at ${formatTime(report.date)}</span>
+                                            <span><i class="bi bi-person me-1"></i>Created by: ${esc(creatorName)}</span>
+                                            <span><i class="bi bi-list-check me-1"></i>${tasks.length} tasks</span>
+                                        </div>
+                                    </div>
+                                    ${tasks.length > 0 ? `
+                                        <div class="mt-2">
+                                            <strong class="small text-muted">Tasks:</strong>
+                                            <div class="d-flex flex-wrap gap-2 mt-1">
+                                                ${tasks.slice(0, 3).map(task => `
+                                                    <span class="badge bg-light text-dark border">
+                                                        ${esc(task.title)}
+                                                        ${task.priority ? `<span class="badge ${task.priority === 'High' ? 'bg-danger' : task.priority === 'Medium' ? 'bg-warning' : 'bg-success'} text-white">${esc(task.priority)}</span>` : ''}
+                                                        ${task.status ? `<span class="badge ${task.status === 'Completed' ? 'bg-success' : task.status === 'InProgress' ? 'bg-primary' : 'bg-secondary'} text-white">${esc(task.status)}</span>` : ''}
+                                                        ${task.remarks ? `<i class="bi bi-chat-dots" title="${esc(task.remarks)}"></i>` : ''}
+                                                    </span>
+                                                `).join('')}
+                                                ${tasks.length > 3 ? `<span class="badge bg-light text-dark">+${tasks.length - 3} more</span>` : ''}
+                                            </div>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                <div class="d-flex gap-2 flex-shrink-0">
+                                    <button class="btn btn-sm btn-outline-info rounded-pill view-report-btn" data-id="${report.id}">
+                                        <i class="bi bi-eye"></i> View
+                                    </button>
+                                </div>
+                            </div>
+                        </div>`;
+                    }).join('')}
+
+                    <footer class="mt-5 pt-3 border-top text-center" style="border-color:#ffe0b2;">
+                        <p class="small text-muted mb-0">© ${new Date().getFullYear()} Indian Oil Corporation Limited | Panipat Refinery</p>
+                    </footer>
+                </div>
+            `;
+
+            root.innerHTML = html;
+
+            // Event bindings
+            document.getElementById("reports-back-btn").addEventListener("click", () => navigateTo("#/dashboard"));
+            document.getElementById("reports-logout-btn").addEventListener("click", goLogout);
+
+            document.querySelectorAll(".view-report-btn").forEach(btn => {
+                btn.addEventListener("click", function() {
+                    navigateTo(`#/handover/${this.dataset.id}`);
+                });
+            });
+
+            document.getElementById("report-apply-filters").addEventListener("click", applyReportFilters);
+            document.getElementById("report-clear-filters").addEventListener("click", () => {
+                document.getElementById("report-date-from").value = '';
+                document.getElementById("report-date-to").value = '';
+                document.getElementById("report-unit-filter").value = 'all';
+                document.getElementById("report-shift-filter").value = 'all';
+                document.getElementById("report-search").value = '';
+                applyReportFilters();
+            });
+
+            document.getElementById("report-search").addEventListener("keydown", (e) => {
+                if (e.key === 'Enter') applyReportFilters();
+            });
+
+            document.getElementById("export-csv-btn").addEventListener("click", () => {
+                const reports = reportsState.filteredReports;
+                if (reports.length === 0) { alert('No reports to export.'); return; }
+                let csv = 'ID,Date,Shift,Unit,Summary,Status,Creator,Tasks\n';
+                reports.forEach(r => {
+                    csv += [
+                        r.id,
+                        new Date(r.date).toLocaleDateString('en-IN'),
+                        r.shiftName || '',
+                        getUnitName(r.unit),
+                        (r.summary || '').replace(/,/g, ';'),
+                        r.status || '',
+                        r.creator?.name || '',
+                        (r.tasks?.length || 0)
+                    ].join(',') + '\n';
+                });
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `shift_reports_${new Date().toISOString().split('T')[0]}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+
+            document.getElementById("print-reports-btn").addEventListener("click", () => window.print());
+        }
+
+        function applyReportFilters() {
+            const from = document.getElementById("report-date-from").value;
+            const to = document.getElementById("report-date-to").value;
+            const unit = document.getElementById("report-unit-filter").value;
+            const shift = document.getElementById("report-shift-filter").value;
+            const search = document.getElementById("report-search").value.toLowerCase();
+
+            reportsState.filteredReports = reportsState.reports.filter(report => {
+                if (from) {
+                    const reportDate = new Date(report.date);
+                    const fromDate = new Date(from);
+                    if (reportDate < fromDate) return false;
+                }
+                if (to) {
+                    const reportDate = new Date(report.date);
+                    const toDate = new Date(to);
+                    toDate.setHours(23, 59, 59);
+                    if (reportDate > toDate) return false;
+                }
+                if (unit !== 'all' && report.unit !== unit) return false;
+                if (shift !== 'all' && report.shiftName !== shift) return false;
+                if (search) {
+                    const summary = (report.summary || '').toLowerCase();
+                    const unitName = getUnitName(report.unit).toLowerCase();
+                    const creator = (report.creator?.name || '').toLowerCase();
+                    if (!summary.includes(search) && !unitName.includes(search) && !creator.includes(search)) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+
+            drawReports(Auth.getUser());
+        }
+
+        console.log("✅ Index.cshtml loaded successfully!");
+        console.log("All features are ready!");
+    </script>
+</body>
+</html>

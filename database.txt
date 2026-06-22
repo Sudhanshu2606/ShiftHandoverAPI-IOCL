@@ -1,0 +1,22 @@
+admin@iocl.com          | Admin@123 | Admin      | Management        | IOCL/ADM/001
+gc.sikder@iocl.com      | Admin@123 | Admin      | Corporate         | IOCL/ADM/002
+rahul@iocl.com          | Super@123 | Supervisor | CDU/VDU           | IOCL/SUP/001
+anil.mehta@iocl.com     | Super@123 | Supervisor | VDU               | IOCL/SUP/002
+priya@iocl.com          | Super@123 | Supervisor | RFCCU             | IOCL/SUP/003
+amit@iocl.com           | Super@123 | Supervisor | DCU               | IOCL/SUP/004
+rajesh.kumar@iocl.com   | Super@123 | Supervisor | OHCU              | IOCL/SUP/005
+priya.sharma@iocl.com   | Super@123 | Supervisor | HCU               | IOCL/SUP/006
+vikram.singh@iocl.com   | Super@123 | Supervisor | DHDS              | IOCL/SUP/007
+rakesh.yadav@iocl.com   | Super@123 | Supervisor | CCRU              | IOCL/SUP/008
+deepak.kumar@iocl.com   | Super@123 | Supervisor | NCU               | IOCL/SUP/009
+manish.arora@iocl.com   | Super@123 | Supervisor | PP Unit           | IOCL/SUP/010
+tarun.malik@iocl.com    | Super@123 | Supervisor | HDPE              | IOCL/SUP/011
+sandeep.rana@iocl.com   | Super@123 | Supervisor | PX/PTA            | IOCL/SUP/012
+pankaj.gupta@iocl.com   | Super@123 | Supervisor | Tank Farms        | IOCL/SUP/017
+vipin.kumar@iocl.com    | Super@123 | Supervisor | Laboratory - QC   | IOCL/SUP/018
+sunil.mehta@iocl.com    | Super@123 | Supervisor | HGU               | IOCL/SUP/013
+kavita.c@iocl.com       | Super@123 | Supervisor | SRU               | IOCL/SUP/014
+rajeev.r@iocl.com       | Super@123 | Supervisor | ETP               | IOCL/SUP/015
+sonu.sharma@iocl.com    | Super@123 | Supervisor | Workshop          | IOCL/SUP/019
+raju.pal@iocl.com       | Super@123 | Supervisor | Safety & Fire     | IOCL/SUP/020
+jitendra.singh@iocl.com | Super@123 | Supervisor | Power Plant       | IOCL/SUP/016
