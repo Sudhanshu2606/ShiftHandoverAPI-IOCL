@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: shift-handover-api
+    runtime: docker
+    repo: https://github.com/Sudhanshu2606/ShiftHandoverAPI-IOCL
+    plan: free
+    dockerfilePath: ./Dockerfile
